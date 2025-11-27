@@ -1,5 +1,5 @@
-import { useState } from "react";
-// import { Card } from "./ui/card";
+import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
@@ -14,6 +14,22 @@ import {
 	Video,
 } from "lucide-react";
 import { motion } from "framer-motion";
+
+// types.ts or in your ChatPage.tsx file
+
+export interface IMessage {
+  _id?: string|undefined;           // MongoDB document ID, optional if not yet saved
+  roomId: string|undefined;         // e.g., "userA_userB"
+  senderId: string|undefined;
+  receiverId: string|undefined;
+  content: string|undefined;
+  read?: boolean;         // optional because it has a default in backend
+  createdAt?: string|undefined;     // ISO string from backend
+  updatedAt?: string|undefined;     // ISO string from backend
+}
+
+
+const socket = io("http://localhost:3000"); // ✅ Your NestJS Socket server
 
 const CHATS = [
 	{
@@ -108,29 +124,66 @@ const MESSAGES = [
 
 export function ChatPage() {
 	const [selectedChat, setSelectedChat] = useState(CHATS[0]);
-	const [message, setMessage] = useState("");
-	const [messages, setMessages] = useState(MESSAGES);
+	const [message, setMessage] = useState<IMessage>();        // single input
+const [messages, setMessages] = useState<IMessage[]>([]); // all chat messages
 
+
+	// ⛓️ CONNECT + LISTEN FOR INCOMING MESSAGES
+	// useEffect(() => {
+	// 	socket.on("receive_message", (msg) => {
+	// 		setMessages((prev) => [...prev, msg]);
+	// 	});
+
+	// 	return () => socket.off("receive_message");
+	// }, []);
+	useEffect(() => {
+  // Listen for incoming messages
+  const handleReceive = (msg: IMessage) => {
+    setMessages((prev) => [...prev, msg]); // add new message at the end
+
+  };
+
+  socket.on("receive_message", handleReceive);
+
+  // Cleanup: remove listener on unmount
+  return () => {
+    socket.off("receive_message", handleReceive);
+  };
+}, []); // ✅ Correct, no errors
+
+
+	// ✈️ SEND MESSAGE (UI + BACKEND)
 	const handleSend = () => {
-		if (message.trim()) {
-			setMessages([
-				...messages,
-				{
-					id: messages.length + 1,
-					sender: "me",
-					content: message,
-					time: new Date().toLocaleTimeString([], {
-						hour: "2-digit",
-						minute: "2-digit",
-					}),
-				},
-			]);
-			setMessage("");
-		}
+		if (!message) return;
+
+		const newMsg = {
+			id: Date.now(),
+			sender: "me",
+			content: message,
+			time: new Date().toLocaleTimeString([], {
+				hour: "2-digit",
+				minute: "2-digit",
+			}),
+		};
+
+		// Update UI instantly
+		setMessages((prev) => [...prev, message]);
+
+		// Send to NestJS server
+		socket.emit("send_message", newMsg);
+
+		setMessage({
+			roomId: "",        // e.g., "userA_userB"
+  senderId: "",
+  receiverId: "",
+  content: "",
+   
+		});
 	};
 
 	return (
 		<div className="h-screen flex">
+			{/* LEFT SIDEBAR — SAME */}
 			<div className="w-80 border-r border-white/10 glass flex flex-col">
 				<div className="p-4 border-b border-white/10">
 					<h2 className="text-xl text-white mb-4">Messages</h2>
@@ -142,6 +195,7 @@ export function ChatPage() {
 						/>
 					</div>
 				</div>
+
 				<ScrollArea className="flex-1">
 					<div className="p-2">
 						{CHATS.map((chat) => (
@@ -158,23 +212,17 @@ export function ChatPage() {
 								<div className="flex items-center gap-3">
 									<div className="relative">
 										<Avatar className="w-12 h-12">
-											<AvatarImage
-												src={chat.avatar}
-												alt={chat.name}
-											/>
-											<AvatarFallback>
-												{chat.name[0]}
-											</AvatarFallback>
+											<AvatarImage src={chat.avatar} alt={chat.name} />
+											<AvatarFallback>{chat.name[0]}</AvatarFallback>
 										</Avatar>
 										{chat.online && (
 											<div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#121212] rounded-full" />
 										)}
 									</div>
+
 									<div className="flex-1 min-w-0">
 										<div className="flex items-center justify-between mb-1">
-											<span className="text-white truncate">
-												{chat.name}
-											</span>
+											<span className="text-white truncate">{chat.name}</span>
 											<span className="text-xs text-gray-400">
 												{chat.time}
 											</span>
@@ -196,18 +244,15 @@ export function ChatPage() {
 					</div>
 				</ScrollArea>
 			</div>
+
+			{/* CHAT WINDOW — SAME */}
 			<div className="flex-1 flex flex-col">
 				<div className="p-4 border-b border-white/10 glass flex items-center justify-between">
 					<div className="flex items-center gap-3">
 						<div className="relative">
 							<Avatar className="w-10 h-10">
-								<AvatarImage
-									src={selectedChat.avatar}
-									alt={selectedChat.name}
-								/>
-								<AvatarFallback>
-									{selectedChat.name[0]}
-								</AvatarFallback>
+								<AvatarImage src={selectedChat.avatar} alt={selectedChat.name} />
+								<AvatarFallback>{selectedChat.name[0]}</AvatarFallback>
 							</Avatar>
 							{selectedChat.online && (
 								<div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#121212] rounded-full" />
@@ -220,99 +265,73 @@ export function ChatPage() {
 							</p>
 						</div>
 					</div>
+
 					<div className="flex items-center gap-2">
-						<Button
-							size="sm"
-							variant="ghost"
-							className="text-gray-400 hover:text-white"
-						>
+						<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 							<Phone className="w-5 h-5" />
 						</Button>
-						<Button
-							size="sm"
-							variant="ghost"
-							className="text-gray-400 hover:text-white"
-						>
+						<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 							<Video className="w-5 h-5" />
 						</Button>
-						<Button
-							size="sm"
-							variant="ghost"
-							className="text-gray-400 hover:text-white"
-						>
+						<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 							<MoreVertical className="w-5 h-5" />
 						</Button>
 					</div>
 				</div>
+
+				{/* CHAT MESSAGES — SAME */}
 				<ScrollArea className="flex-1 p-6">
 					<div className="space-y-4 max-w-3xl mx-auto">
-						{messages.map((msg, index) => (
+						{messages?.map((msg, index) => (
 							<motion.div
-								key={msg.id}
+								key={msg?._id}
 								initial={{ opacity: 0, y: 10 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ delay: index * 0.05 }}
 								className={`flex ${
-									msg.sender === "me"
-										? "justify-end"
-										: "justify-start"
+									msg.senderId === "me" ? "justify-end" : "justify-start"
 								}`}
 							>
-								<div
-									className={`max-w-md ${
-										msg.sender === "me" ? "order-2" : ""
-									}`}
-								>
+								<div className={`max-w-md ${msg.senderId === "me" ? "order-2" : ""}`}>
 									<div
 										className={`rounded-2xl px-4 py-3 ${
-											msg.sender === "me"
+											msg.senderId === "me"
 												? "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] text-white rounded-br-sm"
 												: "glass border border-white/10 text-white rounded-bl-sm"
 										}`}
 									>
-										<p>{msg.content}</p>
+										<p>{msg?.content}</p>
 									</div>
-									<p className="text-xs text-gray-500 mt-1 px-2">
-										{msg.time}
-									</p>
+									<p className="text-xs text-gray-500 mt-1 px-2">{msg.createdAt}</p>
 								</div>
 							</motion.div>
 						))}
 					</div>
 				</ScrollArea>
+
+				{/* INPUT SECTION — SAME */}
 				<div className="p-4 border-t border-white/10 glass">
 					<div className="max-w-3xl mx-auto flex items-end gap-3">
 						<div className="flex-1">
 							<div className="glass rounded-2xl border border-white/10 p-3">
 								<div className="flex items-center gap-2">
-									<Button
-										size="sm"
-										variant="ghost"
-										className="text-gray-400 hover:text-white"
-									>
+									<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 										<Paperclip className="w-5 h-5" />
 									</Button>
 									<Input
-										value={message}
-										onChange={(e) =>
-											setMessage(e.target.value)
-										}
-										onKeyPress={(e) =>
-											e.key === "Enter" && handleSend()
-										}
+										value={message?.content}
+										onChange={(e) => setMessage({ ...message, content: e.target.value })}
+										onKeyPress={(e) => e.key === "Enter" && handleSend()}
 										placeholder="Type a message..."
 										className="flex-1 bg-transparent border-0 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0"
 									/>
-									<Button
-										size="sm"
-										variant="ghost"
-										className="text-gray-400 hover:text-white"
-									>
+									<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 										<Smile className="w-5 h-5" />
 									</Button>
 								</div>
 							</div>
 						</div>
+
 						<Button
 							onClick={handleSend}
 							size="icon"

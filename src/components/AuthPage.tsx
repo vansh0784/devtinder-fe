@@ -12,7 +12,7 @@ export interface IRequestResponse {
 	statusCode: number;
 	message: string;
 	access_token?: string;
-	data?: any;
+	// data?: any;
 }
 
 interface ICreateRequest {
@@ -38,7 +38,7 @@ export function AuthPage() {
 		password: "",
 	});
 	const handleLogin = () => {
-		postApi<ILoginRequest, IRequestResponse>("/user/login", login_data);
+		postApi<ILoginRequest, IRequestResponse>("/user/login", login_data).then(() => onNavigate("/home"));
 	};
 
 	const handleRegister = () => {
