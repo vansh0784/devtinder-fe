@@ -217,7 +217,7 @@ export function CodeEditorPage() {
 	);
 	const [copiedLink, setCopiedLink] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
-
+	console.log(cursorPosition)
 	const sessionLink = "https://devtinder.dev/code/session/abc123xyz";
 	useEffect(() => {
 		if (collaborationEnabled) {

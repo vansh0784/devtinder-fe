@@ -38,7 +38,10 @@ export function AuthPage() {
 		password: "",
 	});
 	const handleLogin = () => {
-		postApi<ILoginRequest, IRequestResponse>("/user/login", login_data);
+		postApi<ILoginRequest, IRequestResponse>(
+			"/user/login",
+			login_data
+		).then(() => onNavigate("/home"));
 	};
 
 	const handleRegister = () => {
@@ -78,13 +81,13 @@ export function AuthPage() {
 						<TabsList className="grid w-full grid-cols-2 mb-8 bg-white/5">
 							<TabsTrigger
 								value="login"
-								className="data-[state=active]:text-white bg-gray-950 "
+								className="data-[state=active]:bg-[#007BFF] text-white bg-[#28272b] "
 							>
 								Login
 							</TabsTrigger>
 							<TabsTrigger
 								value="signup"
-								className="data-[state=active]:bg-[#007BFF] text-white"
+								className="data-[state=active]:bg-[#007BFF] text-white bg-[#28272b]"
 							>
 								Sign Up
 							</TabsTrigger>
@@ -100,7 +103,10 @@ export function AuthPage() {
 										placeholder="developer@devtinder.com"
 										value={login_data.email}
 										onChange={(e) =>
-											setLoginData({ ...login_data,email:e.target.value,})
+											setLoginData({
+												...login_data,
+												email: e.target.value,
+											})
 										}
 										className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
 									/>
@@ -115,7 +121,10 @@ export function AuthPage() {
 										placeholder="••••••••"
 										value={login_data.password}
 										onChange={(e) =>
-											setLoginData({ ...login_data,password:e.target.value,})
+											setLoginData({
+												...login_data,
+												password: e.target.value,
+											})
 										}
 										className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
 									/>
@@ -208,7 +217,10 @@ export function AuthPage() {
 										className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
 										value={signup_data.username}
 										onChange={(e) =>
-											setSignupData({ ...signup_data,username:e.target.value,})
+											setSignupData({
+												...signup_data,
+												username: e.target.value,
+											})
 										}
 									/>
 								</div>
@@ -221,7 +233,10 @@ export function AuthPage() {
 										className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
 										value={signup_data.email}
 										onChange={(e) =>
-											setSignupData({ ...signup_data,email:e.target.value,})
+											setSignupData({
+												...signup_data,
+												email: e.target.value,
+											})
 										}
 									/>
 								</div>
@@ -236,7 +251,10 @@ export function AuthPage() {
 										className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
 										value={signup_data.password}
 										onChange={(e) =>
-											setSignupData({ ...signup_data,password:e.target.value,})
+											setSignupData({
+												...signup_data,
+												password: e.target.value,
+											})
 										}
 									/>
 								</div>

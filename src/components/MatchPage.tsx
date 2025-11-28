@@ -7,6 +7,7 @@ import {
 	useMotionValue,
 	useTransform,
 	AnimatePresence,
+	type PanInfo,
 } from "framer-motion";
 
 const DEVELOPERS = [
@@ -87,7 +88,10 @@ export function MatchPage() {
 	const rotate = useTransform(x, [-200, 200], [-25, 25]);
 	const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
 
-	const handleDragEnd = (event: any, info: any) => {
+	const handleDragEnd = (
+		event: MouseEvent | TouchEvent | PointerEvent,
+		info: PanInfo
+	) => {
 		if (Math.abs(info.offset.x) > 100) {
 			if (info.offset.x > 0) {
 				handleLike();
@@ -95,6 +99,7 @@ export function MatchPage() {
 				handlePass();
 			}
 		}
+		console.log(event);
 	};
 
 	const handleLike = () => {
