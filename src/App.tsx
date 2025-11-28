@@ -14,10 +14,13 @@ import { AuthPage } from "./components/AuthPage";
 import { OnboardingPage } from "./components/OnboardingPage";
 import { NotFoundPage } from "./components/NotFoundPage";
 import { Toaster } from "./components/ui/sonner";
+import { AuthProvider } from "./context/AuthProvider";
 
 export default function App() {
   return (
+    <AuthProvider>
     <Router>
+      
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/auth" element={<AuthPage />} />
@@ -42,6 +45,9 @@ export default function App() {
       </Routes>
 
       <Toaster position="top-right" theme="dark" />
+      
     </Router>
+    </AuthProvider>
+    
   );
 }

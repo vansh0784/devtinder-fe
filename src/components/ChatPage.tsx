@@ -14,22 +14,26 @@ import {
 	Video,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { socket } from "../socket";
+
 
 // types.ts or in your ChatPage.tsx file
 
 export interface IMessage {
-  _id?: string|undefined;           // MongoDB document ID, optional if not yet saved
-  roomId: string|undefined;         // e.g., "userA_userB"
-  senderId: string|undefined;
-  receiverId: string|undefined;
-  content: string|undefined;
+  _id?: string;           // MongoDB document ID, optional if not yet saved
+  roomId: string;         // e.g., "userA_userB"
+  senderId: string;
+  receiverId: string;
+  content: string;
   read?: boolean;         // optional because it has a default in backend
-  createdAt?: string|undefined;     // ISO string from backend
-  updatedAt?: string|undefined;     // ISO string from backend
+  createdAt?: string;     // ISO string from backend
+  updatedAt?: string;     // ISO string from backend
 }
+import { useAuth } from "../hooks/useAuth";
 
-
-const socket = io("http://localhost:3000"); // ✅ Your NestJS Socket server
+// const socket = io("http://localhost:5000", {
+//   transports: ["websocket"], // avoid polling fallback
+// });
 
 const CHATS = [
 	{
@@ -124,19 +128,20 @@ const MESSAGES = [
 
 export function ChatPage() {
 	const [selectedChat, setSelectedChat] = useState(CHATS[0]);
-	const [message, setMessage] = useState<IMessage>();        // single input
+	const [message, setMessage] = useState("");        // single input
 const [messages, setMessages] = useState<IMessage[]>([]); // all chat messages
+const { user } = useAuth();
 
 
-	// ⛓️ CONNECT + LISTEN FOR INCOMING MESSAGES
-	// useEffect(() => {
-	// 	socket.on("receive_message", (msg) => {
-	// 		setMessages((prev) => [...prev, msg]);
-	// 	});
-
-	// 	return () => socket.off("receive_message");
-	// }, []);
+	
 	useEffect(() => {
+		if (!user) return;
+
+  // join a room based on selectedChat
+  socket.emit('join_room', {
+    roomId: `${user._id}_${selectedChat.id}`,
+    userId: user._id,
+  });
   // Listen for incoming messages
   const handleReceive = (msg: IMessage) => {
     setMessages((prev) => [...prev, msg]); // add new message at the end
@@ -154,32 +159,27 @@ const [messages, setMessages] = useState<IMessage[]>([]); // all chat messages
 
 	// ✈️ SEND MESSAGE (UI + BACKEND)
 	const handleSend = () => {
-		if (!message) return;
+  if (!message.trim()||!user) return;
 
-		const newMsg = {
-			id: Date.now(),
-			sender: "me",
-			content: message,
-			time: new Date().toLocaleTimeString([], {
-				hour: "2-digit",
-				minute: "2-digit",
-			}),
-		};
+  
+const userId = user?._id;
 
-		// Update UI instantly
-		setMessages((prev) => [...prev, message]);
 
-		// Send to NestJS server
-		socket.emit("send_message", newMsg);
+  const newMsg: IMessage = {
+    roomId: `${userId}_${selectedChat.id}`, // example room logic
+    senderId: userId,
+    receiverId: selectedChat.id.toString(),
+    content: message,
+    read: false,
+    createdAt: new Date().toISOString(),
+  };
 
-		setMessage({
-			roomId: "",        // e.g., "userA_userB"
-  senderId: "",
-  receiverId: "",
-  content: "",
-   
-		});
-	};
+  setMessages((prev) => [...prev, newMsg]);
+  setMessage(""); // reset input
+
+  socket.emit("send_message", newMsg); // emit to backend
+};
+
 
 	return (
 		<div className="h-screen flex">
@@ -319,12 +319,13 @@ const [messages, setMessages] = useState<IMessage[]>([]); // all chat messages
 										<Paperclip className="w-5 h-5" />
 									</Button>
 									<Input
-										value={message?.content}
-										onChange={(e) => setMessage({ ...message, content: e.target.value })}
-										onKeyPress={(e) => e.key === "Enter" && handleSend()}
-										placeholder="Type a message..."
-										className="flex-1 bg-transparent border-0 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0"
-									/>
+  value={message}                     // just the string
+  onChange={(e) => setMessage(e.target.value)} // update string directly
+  onKeyPress={(e) => e.key === "Enter" && handleSend()}
+  placeholder="Type a message..."
+  className="flex-1 bg-transparent border-0 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0"
+/>
+
 									<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 										<Smile className="w-5 h-5" />
 									</Button>
