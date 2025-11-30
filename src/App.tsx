@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import  ProtectedRoute  from "./utils/ProtectedRoutes";
+// import  ProtectedRoute  from "./utils/ProtectedRoutes";
 import { AppLayout } from "./components/AppLayout";
 import { HomePage } from "./components/HomePage";
 import { ProfilePage } from "./components/ProfilePage";
@@ -27,9 +27,7 @@ export default function App() {
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route
           element={
-            <ProtectedRoute>
               <AppLayout />
-            </ProtectedRoute>
           }
         >
           <Route path="/home" element={<HomePage />} />

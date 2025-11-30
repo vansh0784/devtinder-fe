@@ -14,6 +14,8 @@ import {
 	TrendingUp,
 	Briefcase,
 	Send,
+	Paperclip,
+	ImageIcon,
 	Check,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -105,6 +107,7 @@ export function HomePage() {
 	const [savedPosts, setSavedPosts] = useState<number[]>([]);
 	const [hiredUsers, setHiredUsers] = useState<number[]>([]);
 	const [hireDialogOpen, setHireDialogOpen] = useState(false);
+	const [postContent, setPostContent] = useState("");
 	const [selectedUser, setSelectedUser] = useState<
 		(typeof MOCK_POSTS)[0] | null
 	>(null);
@@ -129,17 +132,16 @@ export function HomePage() {
 	const openHireDialog = (post: (typeof MOCK_POSTS)[0]) => {
 		setSelectedUser(post);
 		const defaultMessage = `Hi ${post.author.name},
+			I came across your profile on DevTinder and I'm impressed by your work, especially your recent post about "${post.content.substring(
+						0,
+						50
+					)}${post.content.length > 50 ? "..." : ""}".
 
-I came across your profile on DevTinder and I'm impressed by your work, especially your recent post about "${post.content.substring(
-			0,
-			50
-		)}${post.content.length > 50 ? "..." : ""}".
+			I have an exciting opportunity that I think would be a great fit for your skills. Would you be interested in discussing a potential collaboration or position?
 
-I have an exciting opportunity that I think would be a great fit for your skills. Would you be interested in discussing a potential collaboration or position?
+			Looking forward to connecting!
 
-Looking forward to connecting!
-
-Best regards`;
+			Best regards`;
 		setCustomMessage(defaultMessage);
 		setHireDialogOpen(true);
 	};
@@ -156,6 +158,14 @@ Best regards`;
 			setCustomMessage("");
 		}
 	};
+	const handleCreatePost = () => {
+		if (postContent.trim()) {
+			toast.success("Post created successfully!", {
+				description: "Your post is now live on your feed.",
+			});
+			setPostContent("");
+		}
+	};
 
 	return (
 		<div className="min-h-screen p-6 max-w-4xl mx-auto">
@@ -165,6 +175,70 @@ Best regards`;
 					Discover projects and connect with developers
 				</p>
 			</div>
+
+			<motion.div
+				initial={{ opacity: 0, y: -10 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.3 }}
+				className="mb-6"
+			>
+				<Card className="glass border-white/10 p-4 hover:border-[#007BFF]/50 transition-colors">
+					<div className="flex items-start gap-3">
+						<Avatar className="w-10 h-10 border-2 border-[#007BFF]">
+							<AvatarImage
+								src="https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=100"
+								alt="You"
+							/>
+							<AvatarFallback>You</AvatarFallback>
+						</Avatar>
+						<div className="flex-1">
+							<Textarea
+								value={postContent}
+								onChange={(e) => setPostContent(e.target.value)}
+								placeholder="What's on your mind? Share your code, projects, or ideas..."
+								className="min-h-20 bg-[#0A0A0A] border-white/10 text-white resize-none mb-3"
+							/>
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-2">
+									<Button
+										size="sm"
+										variant="ghost"
+										className="text-gray-400 hover:text-[#007BFF] hover:bg-[#007BFF]/10"
+									>
+										<ImageIcon className="w-4 h-4 mr-1" />
+										Image
+									</Button>
+									<Button
+										size="sm"
+										variant="ghost"
+										className="text-gray-400 hover:text-[#007BFF] hover:bg-[#007BFF]/10"
+									>
+										<Code2 className="w-4 h-4 mr-1" />
+										Code
+									</Button>
+									<Button
+										size="sm"
+										variant="ghost"
+										className="text-gray-400 hover:text-[#007BFF] hover:bg-[#007BFF]/10"
+									>
+										<Paperclip className="w-4 h-4 mr-1" />
+										Link
+									</Button>
+								</div>
+								<Button
+									size="sm"
+									onClick={handleCreatePost}
+									disabled={!postContent.trim()}
+									className="bg-linear-to-r from-[#007BFF] to-[#8A2BE2] hover:opacity-90 disabled:opacity-50"
+								>
+									Post
+								</Button>
+							</div>
+						</div>
+					</div>
+				</Card>
+			</motion.div>
+
 			<Tabs defaultValue="trending" className="mb-8">
 				<TabsList className="bg-white/5 border border-white/10">
 					<TabsTrigger

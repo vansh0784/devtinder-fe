@@ -17,6 +17,17 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 
+
+interface IUpdateUser {
+  firstname?: string;
+  lastname?: string;
+  username?: string;
+  email?: string;
+  bio?: string;
+  image?: File;
+}
+
+
 export function SettingsPage() {
 	const [darkMode, setDarkMode] = useState(true);
 	const [notifications, setNotifications] = useState({

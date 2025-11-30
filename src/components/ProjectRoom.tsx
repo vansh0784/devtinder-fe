@@ -114,9 +114,7 @@ const CHAT_MESSAGES = [
 ];
 
 export function ProjectRoom() {
-	const [newTask, setNewTask] = useState("");
 	const [newMessage, setNewMessage] = useState("");
-
 	const getPriorityColor = (priority: string) => {
 		switch (priority) {
 			case "high":
