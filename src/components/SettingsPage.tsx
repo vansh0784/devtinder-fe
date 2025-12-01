@@ -18,14 +18,14 @@ import {
 import { motion } from "framer-motion";
 
 
-interface IUpdateUser {
-  firstname?: string;
-  lastname?: string;
-  username?: string;
-  email?: string;
-  bio?: string;
-  image?: File;
-}
+// interface IUpdateUser {
+//   firstname?: string;
+//   lastname?: string;
+//   username?: string;
+//   email?: string;
+//   bio?: string;
+//   image?: File;
+// }
 
 
 export function SettingsPage() {
