@@ -6,9 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Code2, Github } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { postApi } from "../utils/api";
-import { socket } from "../socket"
-
+import { postApi, getApi } from "../utils/api";  // ← ADDED getApi
+import { socket } from "../socket";
 
 // --- TYPES ---
 interface IUser {
@@ -17,11 +16,16 @@ interface IUser {
   email: string;
 }
 
-export interface IRequestResponse<T = unknown> {
+interface ILoginResponse {
   statusCode: number;
   message: string;
   access_token?: string;
-  data?: T;
+}
+
+interface IRequestResponse<T = unknown> {
+  statusCode: number;
+  message: string;
+  access_token?: string;
 }
 
 interface ICreateRequest {
@@ -50,47 +54,97 @@ export function AuthPage() {
     password: "",
   });
 
-  // Save user and token to localStorage
-  const saveUser = (res: IRequestResponse<IUser>) => {
+  // Save token only (backend doesn't send user data)
+  const saveToken = (res: ILoginResponse) => {
+    console.log("💾 saveToken called with:", res);
     if (!res) return;
 
     if (res.access_token) {
       localStorage.setItem("token", res.access_token);
+      console.log("✅ Saved token");
+      return true;
+    } else {
+      console.error("❌ No access_token in response!");
+      return false;
     }
+  };
 
-    if (res.data) {
-      localStorage.setItem("user", JSON.stringify(res.data));
-
-      const userId = res.data._id;
-    const roomId = `global_chat`; // you can also do `${userId}_${someOtherId}` for 1:1
-    socket.emit("join_room", { roomId, userId });
+  // Fetch user profile after login/register
+  const fetchUserProfile = async () => {
+    try {
+      console.log("👤 Fetching user profile...");
+      const user = await getApi<IUser>("/user/profile");
+      console.log("✅ PROFILE RESPONSE:", user);
+      localStorage.setItem("dev_user", JSON.stringify(user));
+      console.log("✅ Saved dev_user:", user._id);
+      
+      // Join chat room
+      const userId = user._id;
+      const roomId = `global_chat`;
+      socket.emit("join_room", { roomId, userId });
+      console.log("🏠 Joined global_chat room");
+      
+      return user;
+    } catch (err) {
+      console.error("❌ PROFILE FETCH ERROR:", err);
+      return null;
     }
   };
 
   // --- HANDLERS ---
+  // const handleLogin = async () => {
+  //   try {
+  //     console.log("🔐 LOGIN REQUEST:", loginData);
+  //     const res = await postApi<ILoginRequest, ILoginResponse>("/user/login", loginData);
+  //     console.log("✅ LOGIN RESPONSE:", res);
+      
+  //     if (saveToken(res)) {
+  //       // Fetch user profile using saved token
+  //       await fetchUserProfile();
+  //       onNavigate("/home");
+  //     }
+  //   } catch (err) {
+  //     console.error("❌ LOGIN ERROR:", err);
+  //   }
+  // };
   const handleLogin = async () => {
-    try {
-      const res = await postApi<ILoginRequest, IRequestResponse<IUser>>(
-        "/user/login",
-        loginData
-      );
-      saveUser(res);
+  try {
+    console.log("🔐 LOGIN REQUEST:", loginData);
+    const res = await postApi<ILoginRequest, ILoginResponse>("/user/login", loginData);
+    console.log("✅ LOGIN RESPONSE:", res);
+    
+    if (saveToken(res)) {
+      // BYPASS profile fetch - use email as user ID
+      const tempUser = {
+        _id: loginData.email,  // Use email as temp ID
+        username: 'Chat User',
+        email: loginData.email
+      };
+      localStorage.setItem("dev_user", JSON.stringify(tempUser));
+      console.log("✅ TEMP USER SAVED:", tempUser._id);
+      
+      socket.emit("join_room", { roomId: "global_chat", userId: tempUser._id });
       onNavigate("/home");
-    } catch (err) {
-      console.error(err);
     }
-  };
+  } catch (err) {
+    console.error("❌ LOGIN ERROR:", err);
+  }
+};
+
 
   const handleRegister = async () => {
     try {
-      const res = await postApi<ICreateRequest, IRequestResponse<IUser>>(
-        "/user/register",
-        signupData
-      );
-      saveUser(res);
-      onNavigate("/onboarding");
+      console.log("🔐 REGISTER REQUEST:", signupData);
+      const res = await postApi<ICreateRequest, ILoginResponse>("/user/register", signupData);
+      console.log("✅ REGISTER RESPONSE:", res);
+      
+      if (saveToken(res)) {
+        // Fetch user profile using saved token
+        await fetchUserProfile();
+        onNavigate("/onboarding");
+      }
     } catch (err) {
-      console.error(err);
+      console.error("❌ REGISTER ERROR:", err);
     }
   };
 
@@ -146,7 +200,7 @@ export function AuthPage() {
                     placeholder="developer@devtinder.com"
                     value={loginData.email}
                     onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                    className="bg-white/5 border-white/10 border text-white placeholder:text-gray-500"
                   />
                 </div>
 
@@ -158,7 +212,7 @@ export function AuthPage() {
                     placeholder="••••••••"
                     value={loginData.password}
                     onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                    className="bg-white/5 border-white/10 border text-white placeholder:text-gray-500"
                   />
                 </div>
 
@@ -179,10 +233,10 @@ export function AuthPage() {
 
               {/* Social login */}
               <div className="grid grid-cols-2 gap-4 mt-4">
-                <Button variant="outline" className="border-white/10 text-white bg-white/5 hover:bg-white/10" onClick={handleAuth}>
+                <Button variant="outline" className="border-white/10 border text-white bg-white/5 hover:bg-white/10" onClick={handleAuth}>
                   Google
                 </Button>
-                <Button variant="outline" className="border-white/10 text-white bg-white/5 hover:bg-white/10" onClick={handleAuth}>
+                <Button variant="outline" className="border-white/10 border text-white bg-white/5 hover:bg-white/10" onClick={handleAuth}>
                   <Github className="w-5 h-5 mr-2" />
                   GitHub
                 </Button>
@@ -200,7 +254,7 @@ export function AuthPage() {
                     placeholder="John Doe"
                     value={signupData.username}
                     onChange={(e) => setSignupData({ ...signupData, username: e.target.value })}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                    className="bg-white/5 border-white/10 border text-white placeholder:text-gray-500"
                   />
                 </div>
 
@@ -212,7 +266,7 @@ export function AuthPage() {
                     placeholder="developer@devtinder.com"
                     value={signupData.email}
                     onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                    className="bg-white/5 border-white/10 border text-white placeholder:text-gray-500"
                   />
                 </div>
 
@@ -224,7 +278,7 @@ export function AuthPage() {
                     placeholder="••••••••"
                     value={signupData.password}
                     onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+                    className="bg-white/5 border-white/10 border text-white placeholder:text-gray-500"
                   />
                 </div>
               </div>

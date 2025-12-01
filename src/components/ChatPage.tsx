@@ -131,30 +131,82 @@ export function ChatPage() {
 	const [message, setMessage] = useState("");        // single input
 const [messages, setMessages] = useState<IMessage[]>([]); // all chat messages
 const { user } = useAuth();
+// At top of ChatPage component, after useAuth()
+console.log("🔍 ChatPage user:", user);
+console.log("🔍 localStorage dev_user:", localStorage.getItem("dev_user"));
+
 
 
 	
-	useEffect(() => {
-		if (!user) return;
+// 	useEffect(() => {
+// 		if (!user) return;
 
-  // join a room based on selectedChat
+//   // join a room based on selectedChat
+//   socket.emit('join_room', {
+//     // roomId: `${user._id}_${selectedChat.id}`,
+// 	roomId: `global_chat`, 
+//     userId: user._id,
+//   });
+//   // Listen for incoming messages
+//   const handleReceive = (msg: IMessage) => {
+//     setMessages((prev) => [...prev, msg]); // add new message at the end
+
+//   };
+
+//   socket.on("receive_message", handleReceive);
+
+//   // Cleanup: remove listener on unmount
+//   return () => {
+//     socket.off("receive_message", handleReceive);
+//   };
+// }, [user, selectedChat]); // ✅ Correct, no errors
+
+useEffect(() => {
+  if (!user) {
+    console.log("⏳ Waiting for user...");
+    return;
+  }
+
+  console.log("👤 User loaded:", user._id);
+
+  // Connection logging
+  const logConnect = () => {
+    console.log("✅ Socket CONNECTED:", socket.id);
+  };
+  const logError = (err: Error) => {
+	console.error("❌ Socket connect_error:", err.message);
+  };
+
+  socket.on("connect", logConnect);
+  socket.on("connect_error", logError);
+
+  // Join room
+  console.log("🏠 Joining global_chat...");
   socket.emit('join_room', {
-    roomId: `${user._id}_${selectedChat.id}`,
+    roomId: 'global_chat', 
     userId: user._id,
   });
-  // Listen for incoming messages
-  const handleReceive = (msg: IMessage) => {
-    setMessages((prev) => [...prev, msg]); // add new message at the end
 
+  // Message handler
+  const handleReceive = (msg: IMessage) => {
+    console.log("📨 Received:", msg);
+    setMessages((prev) => [...prev, msg]);
+  };
+  
+  const handleSent = (msg: IMessage) => {
+    console.log("✅ Message sent ack:", msg._id);
   };
 
   socket.on("receive_message", handleReceive);
+  socket.on("message_sent", handleSent);
 
-  // Cleanup: remove listener on unmount
   return () => {
+    socket.off("connect", logConnect);
+    socket.off("connect_error", logError);
     socket.off("receive_message", handleReceive);
+    socket.off("message_sent", handleSent);
   };
-}, []); // ✅ Correct, no errors
+}, [user]); // Only depend on user
 
 
 	// ✈️ SEND MESSAGE (UI + BACKEND)
@@ -166,7 +218,8 @@ const userId = user?._id;
 
 
   const newMsg: IMessage = {
-    roomId: `${userId}_${selectedChat.id}`, // example room logic
+    // roomId: `${userId}_${selectedChat.id}`, // example room logic
+	roomId: `global_chat`,
     senderId: userId,
     receiverId: selectedChat.id.toString(),
     content: message,
@@ -284,18 +337,18 @@ const userId = user?._id;
 					<div className="space-y-4 max-w-3xl mx-auto">
 						{messages?.map((msg, index) => (
 							<motion.div
-								key={msg?._id}
+								key={msg?._id?? index}
 								initial={{ opacity: 0, y: 10 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ delay: index * 0.05 }}
 								className={`flex ${
-									msg.senderId === "me" ? "justify-end" : "justify-start"
+									msg.senderId === user?._id ? "justify-end" : "justify-start"
 								}`}
 							>
-								<div className={`max-w-md ${msg.senderId === "me" ? "order-2" : ""}`}>
+								<div className={`max-w-md ${msg.senderId === user?._id ? "order-2" : ""}`}>
 									<div
 										className={`rounded-2xl px-4 py-3 ${
-											msg.senderId === "me"
+											msg.senderId === user?._id
 												? "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] text-white rounded-br-sm"
 												: "glass border border-white/10 text-white rounded-bl-sm"
 										}`}
