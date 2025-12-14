@@ -1,5 +1,5 @@
-import { useState } from "react";
-// import { Card } from "./ui/card";
+import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
@@ -14,6 +14,26 @@ import {
 	Video,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { socket } from "../socket";
+
+
+// types.ts or in your ChatPage.tsx file
+
+export interface IMessage {
+  _id?: string;           // MongoDB document ID, optional if not yet saved
+  roomId: string;         // e.g., "userA_userB"
+  senderId: string;
+  receiverId: string;
+  content: string;
+  read?: boolean;         // optional because it has a default in backend
+  createdAt?: string;     // ISO string from backend
+  updatedAt?: string;     // ISO string from backend
+}
+import { useAuth } from "../hooks/useAuth";
+
+// const socket = io("http://localhost:5000", {
+//   transports: ["websocket"], // avoid polling fallback
+// });
 
 const CHATS = [
 	{
@@ -108,29 +128,115 @@ const MESSAGES = [
 
 export function ChatPage() {
 	const [selectedChat, setSelectedChat] = useState(CHATS[0]);
-	const [message, setMessage] = useState("");
-	const [messages, setMessages] = useState(MESSAGES);
+	const [message, setMessage] = useState("");        // single input
+const [messages, setMessages] = useState<IMessage[]>([]); // all chat messages
+const { user } = useAuth();
+// At top of ChatPage component, after useAuth()
+console.log("🔍 ChatPage user:", user);
+console.log("🔍 localStorage dev_user:", localStorage.getItem("dev_user"));
 
+
+
+	
+// 	useEffect(() => {
+// 		if (!user) return;
+
+//   // join a room based on selectedChat
+//   socket.emit('join_room', {
+//     // roomId: `${user._id}_${selectedChat.id}`,
+// 	roomId: `global_chat`, 
+//     userId: user._id,
+//   });
+//   // Listen for incoming messages
+//   const handleReceive = (msg: IMessage) => {
+//     setMessages((prev) => [...prev, msg]); // add new message at the end
+
+//   };
+
+//   socket.on("receive_message", handleReceive);
+
+//   // Cleanup: remove listener on unmount
+//   return () => {
+//     socket.off("receive_message", handleReceive);
+//   };
+// }, [user, selectedChat]); // ✅ Correct, no errors
+
+useEffect(() => {
+  if (!user) {
+    console.log("⏳ Waiting for user...");
+    return;
+  }
+
+  console.log("👤 User loaded:", user._id);
+
+  // Connection logging
+  const logConnect = () => {
+    console.log("✅ Socket CONNECTED:", socket.id);
+  };
+  const logError = (err: Error) => {
+	console.error("❌ Socket connect_error:", err.message);
+  };
+
+  socket.on("connect", logConnect);
+  socket.on("connect_error", logError);
+
+  // Join room
+  console.log("🏠 Joining global_chat...");
+  socket.emit('join_room', {
+    roomId: 'global_chat', 
+    userId: user._id,
+  });
+
+  // Message handler
+  const handleReceive = (msg: IMessage) => {
+    console.log("📨 Received:", msg);
+    setMessages((prev) => [...prev, msg]);
+  };
+  
+  const handleSent = (msg: IMessage) => {
+    console.log("✅ Message sent ack:", msg._id);
+  };
+
+  socket.on("receive_message", handleReceive);
+  socket.on("message_sent", handleSent);
+
+  return () => {
+    socket.off("connect", logConnect);
+    socket.off("connect_error", logError);
+    socket.off("receive_message", handleReceive);
+    socket.off("message_sent", handleSent);
+  };
+}, [user]); // Only depend on user
+
+
+	// ✈️ SEND MESSAGE (UI + BACKEND)
 	const handleSend = () => {
-		if (message.trim()) {
-			setMessages([
-				...messages,
-				{
-					id: messages.length + 1,
-					sender: "me",
-					content: message,
-					time: new Date().toLocaleTimeString([], {
-						hour: "2-digit",
-						minute: "2-digit",
-					}),
-				},
-			]);
-			setMessage("");
-		}
-	};
+  if (!message.trim()||!user) return;
+
+  
+const userId = user?._id;
+
+
+  const newMsg: IMessage = {
+    // roomId: `${userId}_${selectedChat.id}`, // example room logic
+	roomId: `global_chat`,
+    senderId: userId,
+    receiverId: selectedChat.id.toString(),
+    content: message,
+    read: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  setMessages((prev) => [...prev, newMsg]);
+  setMessage(""); // reset input
+
+  socket.emit("send_message", newMsg); // emit to backend
+};
+
 
 	return (
 		<div className="h-screen flex">
+			{/* LEFT SIDEBAR — SAME */}
 			<div className="w-80 border-r border-white/10 glass flex flex-col">
 				<div className="p-4 border-b border-white/10">
 					<h2 className="text-xl text-white mb-4">Messages</h2>
@@ -142,6 +248,7 @@ export function ChatPage() {
 						/>
 					</div>
 				</div>
+
 				<ScrollArea className="flex-1">
 					<div className="p-2">
 						{CHATS.map((chat) => (
@@ -158,23 +265,17 @@ export function ChatPage() {
 								<div className="flex items-center gap-3">
 									<div className="relative">
 										<Avatar className="w-12 h-12">
-											<AvatarImage
-												src={chat.avatar}
-												alt={chat.name}
-											/>
-											<AvatarFallback>
-												{chat.name[0]}
-											</AvatarFallback>
+											<AvatarImage src={chat.avatar} alt={chat.name} />
+											<AvatarFallback>{chat.name[0]}</AvatarFallback>
 										</Avatar>
 										{chat.online && (
 											<div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#121212] rounded-full" />
 										)}
 									</div>
+
 									<div className="flex-1 min-w-0">
 										<div className="flex items-center justify-between mb-1">
-											<span className="text-white truncate">
-												{chat.name}
-											</span>
+											<span className="text-white truncate">{chat.name}</span>
 											<span className="text-xs text-gray-400">
 												{chat.time}
 											</span>
@@ -196,18 +297,15 @@ export function ChatPage() {
 					</div>
 				</ScrollArea>
 			</div>
+
+			{/* CHAT WINDOW — SAME */}
 			<div className="flex-1 flex flex-col">
 				<div className="p-4 border-b border-white/10 glass flex items-center justify-between">
 					<div className="flex items-center gap-3">
 						<div className="relative">
 							<Avatar className="w-10 h-10">
-								<AvatarImage
-									src={selectedChat.avatar}
-									alt={selectedChat.name}
-								/>
-								<AvatarFallback>
-									{selectedChat.name[0]}
-								</AvatarFallback>
+								<AvatarImage src={selectedChat.avatar} alt={selectedChat.name} />
+								<AvatarFallback>{selectedChat.name[0]}</AvatarFallback>
 							</Avatar>
 							{selectedChat.online && (
 								<div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#121212] rounded-full" />
@@ -220,99 +318,74 @@ export function ChatPage() {
 							</p>
 						</div>
 					</div>
+
 					<div className="flex items-center gap-2">
-						<Button
-							size="sm"
-							variant="ghost"
-							className="text-gray-400 hover:text-white"
-						>
+						<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 							<Phone className="w-5 h-5" />
 						</Button>
-						<Button
-							size="sm"
-							variant="ghost"
-							className="text-gray-400 hover:text-white"
-						>
+						<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 							<Video className="w-5 h-5" />
 						</Button>
-						<Button
-							size="sm"
-							variant="ghost"
-							className="text-gray-400 hover:text-white"
-						>
+						<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 							<MoreVertical className="w-5 h-5" />
 						</Button>
 					</div>
 				</div>
+
+				{/* CHAT MESSAGES — SAME */}
 				<ScrollArea className="flex-1 p-6">
 					<div className="space-y-4 max-w-3xl mx-auto">
-						{messages.map((msg, index) => (
+						{messages?.map((msg, index) => (
 							<motion.div
-								key={msg.id}
+								key={msg?._id?? index}
 								initial={{ opacity: 0, y: 10 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ delay: index * 0.05 }}
 								className={`flex ${
-									msg.sender === "me"
-										? "justify-end"
-										: "justify-start"
+									msg.senderId === user?._id ? "justify-end" : "justify-start"
 								}`}
 							>
-								<div
-									className={`max-w-md ${
-										msg.sender === "me" ? "order-2" : ""
-									}`}
-								>
+								<div className={`max-w-md ${msg.senderId === user?._id ? "order-2" : ""}`}>
 									<div
 										className={`rounded-2xl px-4 py-3 ${
-											msg.sender === "me"
+											msg.senderId === user?._id
 												? "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] text-white rounded-br-sm"
 												: "glass border border-white/10 text-white rounded-bl-sm"
 										}`}
 									>
-										<p>{msg.content}</p>
+										<p>{msg?.content}</p>
 									</div>
-									<p className="text-xs text-gray-500 mt-1 px-2">
-										{msg.time}
-									</p>
+									<p className="text-xs text-gray-500 mt-1 px-2">{msg.createdAt}</p>
 								</div>
 							</motion.div>
 						))}
 					</div>
 				</ScrollArea>
+
+				{/* INPUT SECTION — SAME */}
 				<div className="p-4 border-t border-white/10 glass">
 					<div className="max-w-3xl mx-auto flex items-end gap-3">
 						<div className="flex-1">
 							<div className="glass rounded-2xl border border-white/10 p-3">
 								<div className="flex items-center gap-2">
-									<Button
-										size="sm"
-										variant="ghost"
-										className="text-gray-400 hover:text-white"
-									>
+									<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 										<Paperclip className="w-5 h-5" />
 									</Button>
 									<Input
-										value={message}
-										onChange={(e) =>
-											setMessage(e.target.value)
-										}
-										onKeyPress={(e) =>
-											e.key === "Enter" && handleSend()
-										}
-										placeholder="Type a message..."
-										className="flex-1 bg-transparent border-0 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0"
-									/>
-									<Button
-										size="sm"
-										variant="ghost"
-										className="text-gray-400 hover:text-white"
-									>
+  value={message}                     // just the string
+  onChange={(e) => setMessage(e.target.value)} // update string directly
+  onKeyPress={(e) => e.key === "Enter" && handleSend()}
+  placeholder="Type a message..."
+  className="flex-1 bg-transparent border-0 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0"
+/>
+
+									<Button size="sm" variant="ghost" className="text-gray-400 hover:text-white">
 										<Smile className="w-5 h-5" />
 									</Button>
 								</div>
 							</div>
 						</div>
+
 						<Button
 							onClick={handleSend}
 							size="icon"
