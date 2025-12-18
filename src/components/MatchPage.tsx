@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
-import { X, Heart, Star, MapPin, Code2, Zap } from "lucide-react";
+import { X, Heart, Star, MapPin, Code2 } from "lucide-react";
 import {
 	motion,
 	useMotionValue,
@@ -10,11 +10,29 @@ import {
 	type PanInfo,
 } from "framer-motion";
 import axios from "axios";
-import { swipeRight, swipeLeft } from "../api/api.connection";
+import { postApi } from "../utils/api"; // ✅ USE EXISTING API SETUP
 
+// =========================
+// INLINE API FUNCTIONS
+// =========================
+const swipeRight = async (receiverId: string) => {
+	return await postApi<null, { statusCode: number; message: string }>(
+		`/connection/right/${receiverId}`,
+		null
+	);
+};
+
+const swipeLeft = async (receiverId: string) => {
+	return await postApi<null, { statusCode: number; message: string }>(
+		`/connection/left/${receiverId}`,
+		null
+	);
+};
+
+// ⚠️ TEMP DATA — MUST BE REAL MONGO IDS
 const DEVELOPERS = [
 	{
-		id: "1", // later replace with Mongo _id
+		id: "66c9d21a9f3b4c8d1a4e1234", // 👈 REAL MongoDB _id
 		name: "Emma Wilson",
 		username: "@emmawilson",
 		avatar:
@@ -22,9 +40,7 @@ const DEVELOPERS = [
 		bio: "Frontend architect with a passion for creating beautiful, accessible user experiences",
 		location: "New York, NY",
 		skills: ["React", "TypeScript", "TailwindCSS", "Next.js", "Figma"],
-		interests: ["UI/UX Design", "Web Accessibility", "Open Source"],
 		githubStars: 2340,
-		projects: 28,
 		gradient: "from-[#FF6B6B] to-[#FFE66D]",
 	},
 ];
@@ -72,29 +88,24 @@ export function MatchPage() {
 
 			const res = await swipeRight(currentDev.id);
 
-			if (res?.data?.message?.includes("Match")) {
+			if (res?.message?.includes("Match")) {
 				alert("🎉 It's a Match!");
 			}
 
 			setMatches((prev) => [...prev, currentDev.id]);
 			nextCard();
 		} catch (err: unknown) {
-	console.error("SWIPE ERROR:", err);
+			console.error("SWIPE ERROR:", err);
 
-	if (axios.isAxiosError(err)) {
-		console.error("STATUS:", err.response?.status);
-		console.error("DATA:", err.response?.data);
-		console.error("HEADERS:", err.response?.headers);
-
-		alert(
-			err.response?.data?.message ||
-			`Request failed with status ${err.response?.status}`
-		);
-	} else {
-		alert("Unknown error occurred");
-	}
-}
-finally {
+			if (axios.isAxiosError(err)) {
+				alert(
+					err.response?.data?.message ||
+						`Request failed (${err.response?.status})`
+				);
+			} else {
+				alert("Unknown error occurred");
+			}
+		} finally {
 			setIsSwiping(false);
 		}
 	};
@@ -112,22 +123,17 @@ finally {
 			setPasses((prev) => [...prev, currentDev.id]);
 			nextCard();
 		} catch (err: unknown) {
-	console.error("SWIPE ERROR:", err);
+			console.error("SWIPE ERROR:", err);
 
-	if (axios.isAxiosError(err)) {
-		console.error("STATUS:", err.response?.status);
-		console.error("DATA:", err.response?.data);
-		console.error("HEADERS:", err.response?.headers);
-
-		alert(
-			err.response?.data?.message ||
-			`Request failed with status ${err.response?.status}`
-		);
-	} else {
-		alert("Unknown error occurred");
-	}
-}
-finally {
+			if (axios.isAxiosError(err)) {
+				alert(
+					err.response?.data?.message ||
+						`Request failed (${err.response?.status})`
+				);
+			} else {
+				alert("Unknown error occurred");
+			}
+		} finally {
 			setIsSwiping(false);
 		}
 	};
@@ -152,18 +158,22 @@ finally {
 					<h2 className="mb-4 text-3xl text-white">
 						No More Profiles
 					</h2>
-					<div className="flex justify-center gap-8">
+					<div className="flex gap-8 justify-center">
 						<div>
 							<div className="text-2xl text-white">
 								{matches.length}
 							</div>
-							<div className="text-sm text-gray-400">Liked</div>
+							<div className="text-gray-400 text-sm">
+								Liked
+							</div>
 						</div>
 						<div>
 							<div className="text-2xl text-white">
 								{passes.length}
 							</div>
-							<div className="text-sm text-gray-400">Passed</div>
+							<div className="text-gray-400 text-sm">
+								Passed
+							</div>
 						</div>
 					</div>
 				</div>
@@ -188,80 +198,62 @@ finally {
 
 				<div className="relative flex h-[600px] items-center justify-center">
 					<AnimatePresence>
-						{DEVELOPERS.slice(currentIndex, currentIndex + 2).map(
-							(dev, index) => (
-								<motion.div
-									key={dev.id}
-									style={{
-										x: index === 0 ? x : 0,
-										rotate: index === 0 ? rotate : 0,
-										opacity: index === 0 ? opacity : 1,
-										zIndex: index === 0 ? 20 : 10,
-										scale: index === 0 ? 1 : 0.95,
-									}}
-									drag={index === 0 ? "x" : false}
-									dragConstraints={{ left: 0, right: 0 }}
-									onDragEnd={
-										index === 0 ? handleDragEnd : undefined
-									}
-									className="absolute w-full"
-									initial={{ scale: 0.9, opacity: 0 }}
-									animate={{ scale: 1, opacity: 1 }}
-									exit={{ scale: 0.9, opacity: 0 }}
+						<motion.div
+							key={currentDev.id}
+							style={{ x, rotate, opacity }}
+							drag="x"
+							dragConstraints={{ left: 0, right: 0 }}
+							onDragEnd={handleDragEnd}
+							className="absolute w-full"
+						>
+							<div className="overflow-hidden rounded-xl border border-white/10 bg-[#1C1C1E] shadow-2xl">
+								<div
+									className={`h-40 bg-linear-to-r${currentDev.gradient} relative`}
 								>
-									<div className="overflow-hidden rounded-xl border border-white/10 bg-[#1C1C1E] shadow-2xl">
-										<div
-											className={`h-40 bg-linear-to-r${dev.gradient} relative`}
-										>
-											<div className="absolute inset-0 flex items-center justify-center opacity-20">
-												<Code2 className="h-32 w-32 text-white" />
-											</div>
+									<div className="absolute inset-0 flex items-center justify-center opacity-20">
+										<Code2 className="h-32 w-32 text-white" />
+									</div>
+								</div>
+
+								<div className="relative -mt-16 px-6">
+									<Avatar className="mx-auto h-32 w-32 border-4 border-[#1C1C1E] shadow-2xl">
+										<AvatarImage src={currentDev.avatar} />
+										<AvatarFallback>
+											{currentDev.name[0]}
+										</AvatarFallback>
+									</Avatar>
+								</div>
+
+								<div className="p-6 pt-4 text-center">
+									<h2 className="text-2xl text-white">
+										{currentDev.name}
+									</h2>
+									<p className="mb-4 text-gray-400">
+										{currentDev.username}
+									</p>
+									<p className="mb-4 text-gray-300">
+										{currentDev.bio}
+									</p>
+
+									<div className="flex justify-center gap-4 text-sm text-gray-400">
+										<div className="flex items-center gap-1">
+											<MapPin className="h-4 w-4" />
+											{currentDev.location}
 										</div>
-
-										<div className="relative -mt-16 px-6">
-											<Avatar className="mx-auto h-32 w-32 border-4 border-[#1C1C1E] shadow-2xl">
-												<AvatarImage src={dev.avatar} />
-												<AvatarFallback>
-													{dev.name[0]}
-												</AvatarFallback>
-											</Avatar>
-										</div>
-
-										<div className="p-6 pt-4">
-											<h2 className="mb-1 text-center text-2xl text-white">
-												{dev.name}
-											</h2>
-											<p className="mb-4 text-center text-gray-400">
-												{dev.username}
-											</p>
-
-											<p className="mb-4 text-center text-gray-300">
-												{dev.bio}
-											</p>
-
-											<div className="mb-4 flex justify-center gap-4 text-sm text-gray-400">
-												<div className="flex items-center gap-1">
-													<MapPin className="h-4 w-4" />
-													{dev.location}
-												</div>
-												<div className="flex items-center gap-1">
-													<Star className="h-4 w-4 text-yellow-500" />
-													{dev.githubStars}
-												</div>
-											</div>
-
-											<div className="flex flex-wrap justify-center gap-2">
-												{dev.skills.map((skill) => (
-													<Badge key={skill}>
-														{skill}
-													</Badge>
-												))}
-											</div>
+										<div className="flex items-center gap-1">
+											<Star className="h-4 w-4 text-yellow-500" />
+											{currentDev.githubStars}
 										</div>
 									</div>
-								</motion.div>
-							)
-						)}
+
+									<div className="mt-4 flex flex-wrap justify-center gap-2">
+										{currentDev.skills.map((skill) => (
+											<Badge key={skill}>{skill}</Badge>
+										))}
+									</div>
+								</div>
+							</div>
+						</motion.div>
 					</AnimatePresence>
 				</div>
 
