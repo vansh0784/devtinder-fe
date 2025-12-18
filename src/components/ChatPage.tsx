@@ -18,8 +18,6 @@ import { useAuth } from "../hooks/useAuth";
 import { type IUser } from "./ProfilePage";
 import { getApi } from "../utils/api";
 
-// types.ts or in your ChatPage.tsx file
-
 export interface IMessage {
 	_id?: string; // MongoDB document ID, optional if not yet saved
 	roomId: string; // e.g., "userA_userB"
@@ -124,7 +122,6 @@ const MESSAGES = [
 
 export function ChatPage() {
 	const [friendList, setFriendList] = useState<IUser[]>([]);
-	// const [selectedChat, setSelectedChat] = useState(friendList[0]);
 	const [selectedChat, setSelectedChat] = useState<IUser | null>(null);
 	const [message, setMessage] = useState(""); // single input
 	const [messages, setMessages] = useState<IMessage[]>([]); // all chat messages
@@ -132,31 +129,6 @@ export function ChatPage() {
 	const getRoomId = (userId1: string, userId2: string) => {
 	return [userId1, userId2].sort().join("_");
 };
-
-
-
-	// useEffect(() => {
-	// 	if (!user) return;
-
-	// 	// join a room based on selectedChat
-	// 	socket.emit('join_room', {
-	// 		// roomId: `${user._id}_${selectedChat.id}`,
-	// 		roomId: `global_chat`,
-	// 		userId: user._id,
-	// 	});
-	// 	// Listen for incoming messages
-	// 	const handleReceive = (msg: IMessage) => {
-	// 		setMessages((prev) => [...prev, msg]); // add new message at the end
-
-	// 	};
-
-	// 	socket.on("receive_message", handleReceive);
-
-	// 	// Cleanup: remove listener on unmount
-	// 	return () => {
-	// 		socket.off("receive_message", handleReceive);
-	// 	};
-	// }, [user, selectedChat]); // ✅ Correct, no errors
 
 	useEffect(() => {
 	if (!user || !selectedChat) return;
@@ -195,32 +167,6 @@ export function ChatPage() {
 		socket.off("receive_message", handleReceive);
 	};
 }, [user, selectedChat]);
-
-
-
-	// ✈️ SEND MESSAGE (UI + BACKEND)
-	// const handleSend = () => {
-	// 	// if (!message.trim() || !user) return;
-	// 	if (!message.trim() || !user || !selectedChat) return;
-
-
-	// 	const userId = user?._id;
-
-	// 	const newMsg: IMessage = {
-	// 		// roomId: `${userId}_${selectedChat.id}`, // example room logic
-	// 		roomId: `global_chat`,
-	// 		senderId: userId,
-	// 		receiverId: selectedChat._id?.toString(),
-	// 		content: message,
-	// 		read: false,
-	// 		createdAt: new Date().toISOString(),
-	// 	};
-
-	// 	setMessages((prev) => [...prev, newMsg]);
-	// 	setMessage(""); // reset input
-
-	// 	socket.emit("send_message", newMsg); // emit to backend
-	// };
 
 	const handleSend = () => {
 	if (!message.trim() || !user || !selectedChat) return;
@@ -302,14 +248,6 @@ export function ChatPage() {
 											</span>
 										</div>
 										<div className="flex items-center justify-between">
-											{/* <p className="text-sm text-gray-400 truncate">
-												{chat?.lastMessage ?? "Hello World"}
-											</p>
-											{chat.unread > 0 && (
-												<span className="ml-2 px-2 py-0.5 bg-[#007BFF] rounded-full text-xs">
-													{chat.unread}
-												</span>
-											)} */}
 										</div>
 									</div>
 								</div>

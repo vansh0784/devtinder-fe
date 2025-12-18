@@ -62,14 +62,6 @@ export function AuthPage() {
 			const res = await getApi<IUser>("/user/profile");
 			setUser(res);
 
-			// Join chat room
-			// if (user) {
-			// 	const userId = user?._id;
-			// 	const roomId = `global_chat`;
-			// 	socket.emit("join_room", { roomId, userId });
-			// 	console.log("Joined global_chat room");
-			// }
-
 			return user;
 		} catch (err) {
 			console.error("PROFILE FETCH ERROR:", err);
@@ -77,22 +69,6 @@ export function AuthPage() {
 		}
 	};
 
-	// --- HANDLERS ---
-	// const handleLogin = async () => {
-	//   try {
-	//     console.log("🔐 LOGIN REQUEST:", loginData);
-	//     const res = await postApi<ILoginRequest, ILoginResponse>("/user/login", loginData);
-	//     console.log("✅ LOGIN RESPONSE:", res);
-
-	//     if (saveToken(res)) {
-	//       // Fetch user profile using saved token
-	//       await fetchUserProfile();
-	//       onNavigate("/home");
-	//     }
-	//   } catch (err) {
-	//     console.error("❌ LOGIN ERROR:", err);
-	//   }
-	// };
 	const handleLogin = async () => {
 		try {
 			await postApi<ILoginRequest, ILoginResponse>(
@@ -126,15 +102,6 @@ export function AuthPage() {
 		}
 	};
 
-	//   useEffect(() => {
-	//   if (isAuthenticated && user) {
-	//     console.log("✅ Auth0 user logged in:", user);
-
-	//     // TEMP: Just navigate user forward
-	//     onNavigate("/home");
-	//   }
-	// }, [isAuthenticated, user]);
-
 	useEffect(() => {
 		const handleAuth0Login = async () => {
 			if (!isAuthenticated || !user) return;
@@ -160,11 +127,11 @@ export function AuthPage() {
 
 	// --- RENDER ---
 	return (
-		<div className="min-h-screen bg-linear-to-br from-[#121212] via-[#1C1C1E] to-[#121212] flex items-center justify-center p-6 relative overflow-hidden">
+		<div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-linear-to-br from-[#121212] via-[#1C1C1E] to-[#121212] p-6">
 			<div className="absolute inset-0 overflow-hidden">
-				<div className="absolute top-20 left-20 w-64 h-64 bg-[#007BFF] opacity-10 blur-3xl rounded-full" />
-				<div className="absolute bottom-20 right-20 w-96 h-96 bg-[#8A2BE2] opacity-10 blur-3xl rounded-full" />
-				<div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[200px] opacity-5 text-white/10 font-mono">
+				<div className="absolute top-20 left-20 h-64 w-64 rounded-full bg-[#007BFF] opacity-10 blur-3xl" />
+				<div className="absolute right-20 bottom-20 h-96 w-96 rounded-full bg-[#8A2BE2] opacity-10 blur-3xl" />
+				<div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[200px] text-white/10 opacity-5">
 					{"{ }"}
 				</div>
 			</div>
@@ -173,11 +140,11 @@ export function AuthPage() {
 				initial={{ opacity: 0, y: 20 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.6 }}
-				className="w-full max-w-md relative z-10"
+				className="relative z-10 w-full max-w-md"
 			>
-				<div className="text-center mb-8">
-					<div className="flex items-center justify-center gap-2 mb-2">
-						<Code2 className="w-10 h-10 text-[#007BFF]" />
+				<div className="mb-8 text-center">
+					<div className="mb-2 flex items-center justify-center gap-2">
+						<Code2 className="h-10 w-10 text-[#007BFF]" />
 						<span className="text-2xl gradient-text">
 							DevTinder
 						</span>
@@ -185,19 +152,19 @@ export function AuthPage() {
 					<p className="text-gray-400">Connect. Collaborate. Code.</p>
 				</div>
 
-				<div className="glass rounded-3xl p-8 shadow-2xl">
+				<div className="rounded-3xl p-8 shadow-2xl glass">
 					<Tabs defaultValue="login" className="w-full">
 						{/* --- TAB LIST --- */}
-						<TabsList className="grid w-full grid-cols-2 mb-8 bg-white/5">
+						<TabsList className="mb-8 grid w-full grid-cols-2 bg-white/5">
 							<TabsTrigger
 								value="login"
-								className="data-[state=active]:bg-linear-to-br from-[#007BFF] to-[#8A2BE2] text-white"
+								className="from-[#007BFF] to-[#8A2BE2] text-white data-[state=active]:bg-linear-to-br"
 							>
 								Login
 							</TabsTrigger>
 							<TabsTrigger
 								value="signup"
-								className="data-[state=active]:bg-linear-to-br from-[#007BFF] to-[#8A2BE2] text-white"
+								className="from-[#007BFF] to-[#8A2BE2] text-white data-[state=active]:bg-linear-to-br"
 							>
 								Sign Up
 							</TabsTrigger>
@@ -222,7 +189,7 @@ export function AuthPage() {
 												email: e.target.value,
 											})
 										}
-										className="bg-white/5 border-white/10 border text-white placeholder:text-gray-500"
+										className="border border-white/10 bg-white/5 text-white placeholder:text-gray-500"
 									/>
 								</div>
 
@@ -241,7 +208,7 @@ export function AuthPage() {
 												password: e.target.value,
 											})
 										}
-										className="bg-white/5 border-white/10 border text-white placeholder:text-gray-500"
+										className="border border-white/10 bg-white/5 text-white placeholder:text-gray-500"
 									/>
 								</div>
 
@@ -267,20 +234,20 @@ export function AuthPage() {
 							</Button>
 
 							{/* Social login */}
-							<div className="grid grid-cols-2 gap-4 mt-4">
+							<div className="mt-4 grid grid-cols-2 gap-4">
 								<Button
 									variant="outline"
-									className="border-white/10 border text-white bg-white/5 hover:bg-white/10"
+									className="border border-white/10 bg-white/5 text-white hover:bg-white/10"
 									onClick={handleAuth}
 								>
 									Google
 								</Button>
 								<Button
 									variant="outline"
-									className="border-white/10 border text-white bg-white/5 hover:bg-white/10"
+									className="border border-white/10 bg-white/5 text-white hover:bg-white/10"
 									onClick={handleAuth}
 								>
-									<Github className="w-5 h-5 mr-2" />
+									<Github className="mr-2 h-5 w-5" />
 									GitHub
 								</Button>
 							</div>
@@ -307,7 +274,7 @@ export function AuthPage() {
 												username: e.target.value,
 											})
 										}
-										className="bg-white/5 border-white/10 border text-white placeholder:text-gray-500"
+										className="border border-white/10 bg-white/5 text-white placeholder:text-gray-500"
 									/>
 								</div>
 
@@ -324,7 +291,7 @@ export function AuthPage() {
 												email: e.target.value,
 											})
 										}
-										className="bg-white/5 border-white/10 border text-white placeholder:text-gray-500"
+										className="border border-white/10 bg-white/5 text-white placeholder:text-gray-500"
 									/>
 								</div>
 
@@ -343,7 +310,7 @@ export function AuthPage() {
 												password: e.target.value,
 											})
 										}
-										className="bg-white/5 border-white/10 border text-white placeholder:text-gray-500"
+										className="border border-white/10 bg-white/5 text-white placeholder:text-gray-500"
 									/>
 								</div>
 							</div>
@@ -358,7 +325,7 @@ export function AuthPage() {
 					</Tabs>
 				</div>
 
-				<div className="text-center mt-6">
+				<div className="mt-6 text-center">
 					<button
 						className="text-gray-400 hover:text-white"
 						onClick={() => onNavigate("landing")}
