@@ -7,7 +7,7 @@ import { Code2, Github } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { postApi, getApi } from "../utils/api";
-import { socket } from "../socket";
+import { socket } from "../utils/socket";
 import { useAuth } from "../hooks/useAuth";
 import { useAuth0 } from "@auth0/auth0-react";
 

@@ -13,7 +13,7 @@ import {
 	Video,
 } from "lucide-react";
 import { motion } from "framer-motion";
-// import { socket } from "../socket";
+import { socket } from "../utils/socket";
 import { useAuth } from "../hooks/useAuth";
 import { type IUser } from "./ProfilePage";
 import { getApi } from "../utils/api";
@@ -30,10 +30,6 @@ export interface IMessage {
 	createdAt?: string; // ISO string from backend
 	updatedAt?: string; // ISO string from backend
 }
-
-// const socket = io("http://localhost:5000", {
-//   transports: ["websocket"], // avoid polling fallback
-// });
 
 const CHATS = [
 	{
@@ -128,85 +124,85 @@ const MESSAGES = [
 
 export function ChatPage() {
 	const [friendList, setFriendList] = useState<IUser[]>([]);
-	const [selectedChat, setSelectedChat] = useState(friendList[0]);
+	// const [selectedChat, setSelectedChat] = useState(friendList[0]);
+	const [selectedChat, setSelectedChat] = useState<IUser | null>(null);
 	const [message, setMessage] = useState(""); // single input
 	const [messages, setMessages] = useState<IMessage[]>([]); // all chat messages
 	const { user } = useAuth();
-	// At top of ChatPage component, after useAuth()
+	const getRoomId = (userId1: string, userId2: string) => {
+	return [userId1, userId2].sort().join("_");
+};
 
-	// 	useEffect(() => {
-	// 		if (!user) return;
 
-	//   // join a room based on selectedChat
-	//   socket.emit('join_room', {
-	//     // roomId: `${user._id}_${selectedChat.id}`,
-	// 	roomId: `global_chat`,
-	//     userId: user._id,
-	//   });
-	//   // Listen for incoming messages
-	//   const handleReceive = (msg: IMessage) => {
-	//     setMessages((prev) => [...prev, msg]); // add new message at the end
-
-	//   };
-
-	//   socket.on("receive_message", handleReceive);
-
-	//   // Cleanup: remove listener on unmount
-	//   return () => {
-	//     socket.off("receive_message", handleReceive);
-	//   };
-	// }, [user, selectedChat]); // ✅ Correct, no errors
 
 	// useEffect(() => {
-	// 	if (!user) {
-	// 		console.log("⏳ Waiting for user...");
-	// 		return;
-	// 	}
+	// 	if (!user) return;
 
-	// 	console.log("👤 User loaded:", user._id);
-
-	// 	// Connection logging
-	// 	const logConnect = () => {
-	// 		console.log("✅ Socket CONNECTED:", socket.id);
-	// 	};
-	// 	const logError = (err: Error) => {
-	// 		console.error("❌ Socket connect_error:", err.message);
-	// 	};
-
-	// 	socket.on("connect", logConnect);
-	// 	socket.on("connect_error", logError);
-
-	// 	// Join room
-	// 	console.log("🏠 Joining global_chat...");
-	// 	socket.emit("join_room", {
-	// 		roomId: "global_chat",
+	// 	// join a room based on selectedChat
+	// 	socket.emit('join_room', {
+	// 		// roomId: `${user._id}_${selectedChat.id}`,
+	// 		roomId: `global_chat`,
 	// 		userId: user._id,
 	// 	});
-
-	// 	// Message handler
+	// 	// Listen for incoming messages
 	// 	const handleReceive = (msg: IMessage) => {
-	// 		console.log("📨 Received:", msg);
-	// 		setMessages((prev) => [...prev, msg]);
-	// 	};
+	// 		setMessages((prev) => [...prev, msg]); // add new message at the end
 
-	// 	const handleSent = (msg: IMessage) => {
-	// 		console.log("✅ Message sent ack:", msg._id);
 	// 	};
 
 	// 	socket.on("receive_message", handleReceive);
-	// 	socket.on("message_sent", handleSent);
 
+	// 	// Cleanup: remove listener on unmount
 	// 	return () => {
-	// 		socket.off("connect", logConnect);
-	// 		socket.off("connect_error", logError);
 	// 		socket.off("receive_message", handleReceive);
-	// 		socket.off("message_sent", handleSent);
 	// 	};
-	// }, [user]); // Only depend on user
+	// }, [user, selectedChat]); // ✅ Correct, no errors
 
-	// // ✈️ SEND MESSAGE (UI + BACKEND)
+	useEffect(() => {
+	if (!user || !selectedChat) return;
+
+	const roomId = getRoomId(user._id, selectedChat._id);
+
+	// 1️⃣ Clear old messages immediately
+	setMessages([]);
+
+	// 2️⃣ Join room
+	socket.emit("join_room", {
+		roomId,
+		userId: user._id,
+	});
+
+	// 3️⃣ Ask backend for chat history
+	socket.emit("load_messages", { roomId });
+
+	// 4️⃣ Receive chat history
+	const handleHistory = (msgs: IMessage[]) => {
+		setMessages(msgs);
+	};
+
+	// 5️⃣ Receive new messages
+	const handleReceive = (msg: IMessage) => {
+		if (msg.roomId === roomId) {
+			setMessages((prev) => [...prev, msg]);
+		}
+	};
+
+	socket.on("chat_history", handleHistory);
+	socket.on("receive_message", handleReceive);
+
+	return () => {
+		socket.off("chat_history", handleHistory);
+		socket.off("receive_message", handleReceive);
+	};
+}, [user, selectedChat]);
+
+
+
+	// ✈️ SEND MESSAGE (UI + BACKEND)
 	// const handleSend = () => {
-	// 	if (!message.trim() || !user) return;
+	// 	// if (!message.trim() || !user) return;
+	// 	if (!message.trim() || !user || !selectedChat) return;
+
 
 	// 	const userId = user?._id;
 
@@ -214,7 +210,7 @@ export function ChatPage() {
 	// 		// roomId: `${userId}_${selectedChat.id}`, // example room logic
 	// 		roomId: `global_chat`,
 	// 		senderId: userId,
-	// 		receiverId: selectedChat.id.toString(),
+	// 		receiverId: selectedChat._id?.toString(),
 	// 		content: message,
 	// 		read: false,
 	// 		createdAt: new Date().toISOString(),
@@ -226,12 +222,33 @@ export function ChatPage() {
 	// 	socket.emit("send_message", newMsg); // emit to backend
 	// };
 
+	const handleSend = () => {
+	if (!message.trim() || !user || !selectedChat) return;
+
+	const roomId = getRoomId(user._id, selectedChat._id);
+
+	const newMsg: IMessage = {
+		roomId,
+		senderId: user._id,
+		receiverId: selectedChat._id,
+		content: message,
+		read: false,
+		createdAt: new Date().toISOString(),
+	};
+
+	setMessages((prev) => [...prev, newMsg]);
+	setMessage("");
+
+	socket.emit("send_message", newMsg);
+};
+
+
 	useEffect(() => {
 		getApi<IUser[]>(`/connection/matches`)
 			.then((res) => setFriendList(res))
 			.catch((err) => console.log(err));
 	}, []);
-
+	
 	return (
 		<div className="h-screen flex">
 			{/* LEFT SIDEBAR — SAME */}
@@ -249,16 +266,15 @@ export function ChatPage() {
 
 				<ScrollArea className="flex-1">
 					<div className="p-2">
-						{ friendList && friendList?.map((chat) => (
+						{friendList && friendList?.map((chat) => (
 							<motion.button
 								key={chat?._id}
 								onClick={() => setSelectedChat(chat)}
 								whileHover={{ scale: 1.02 }}
-								className={`w-full p-3 rounded-xl mb-2 transition-all text-left ${
-									selectedChat?._id === chat?._id
-										? "bg-[#007BFF]/20 border border-[#007BFF]/50"
-										: "hover:bg-white/5"
-								}`}
+								className={`w-full p-3 rounded-xl mb-2 transition-all text-left ${selectedChat?._id === chat?._id
+									? "bg-[#007BFF]/20 border border-[#007BFF]/50"
+									: "hover:bg-white/5"
+									}`}
 							>
 								<div className="flex items-center gap-3">
 									<div className="relative">
@@ -363,25 +379,22 @@ export function ChatPage() {
 								initial={{ opacity: 0, y: 10 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ delay: index * 0.05 }}
-								className={`flex ${
-									msg.senderId === user?._id
-										? "justify-end"
-										: "justify-start"
-								}`}
+								className={`flex ${msg.senderId === user?._id
+									? "justify-end"
+									: "justify-start"
+									}`}
 							>
 								<div
-									className={`max-w-md ${
-										msg.senderId === user?._id
-											? "order-2"
-											: ""
-									}`}
+									className={`max-w-md ${msg.senderId === user?._id
+										? "order-2"
+										: ""
+										}`}
 								>
 									<div
-										className={`rounded-2xl px-4 py-3 ${
-											msg.senderId === user?._id
-												? "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] text-white rounded-br-sm"
-												: "glass border border-white/10 text-white rounded-bl-sm"
-										}`}
+										className={`rounded-2xl px-4 py-3 ${msg.senderId === user?._id
+											? "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] text-white rounded-br-sm"
+											: "glass border border-white/10 text-white rounded-bl-sm"
+											}`}
 									>
 										<p>{msg?.content}</p>
 									</div>
@@ -412,7 +425,12 @@ export function ChatPage() {
 										onChange={(e) =>
 											setMessage(e.target.value)
 										} // update string directly
-										onKeyPress={(e) => e.key === "Enter"}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") {
+												handleSend();
+											}
+										}}
+
 										placeholder="Type a message..."
 										className="flex-1 bg-transparent border-0 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0"
 									/>
@@ -429,12 +447,13 @@ export function ChatPage() {
 						</div>
 
 						<Button
-							onClick={() => {}}
+							onClick={handleSend}
 							size="icon"
 							className="w-12 h-12 bg-linear-to-r from-[#007BFF] to-[#8A2BE2] rounded-full hover:opacity-90"
 						>
 							<Send className="w-5 h-5" />
 						</Button>
+
 					</div>
 				</div>
 			</div>

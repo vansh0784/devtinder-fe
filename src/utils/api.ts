@@ -1,7 +1,7 @@
 import axios, { type AxiosRequestConfig } from "axios";
 
 const api = axios.create({
-	baseURL: "https://devtinder-be-1.onrender.com",
+	baseURL: "http://localhost:3000",
 	headers: {
 		Authorization: `Bearer`,
 	},
