@@ -13,7 +13,10 @@ import {
 	Video,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { socket } from "../socket";
+// import { socket } from "../socket";
+import { useAuth } from "../hooks/useAuth";
+import { type IUser } from "./ProfilePage";
+import { getApi } from "../utils/api";
 
 // types.ts or in your ChatPage.tsx file
 
@@ -27,7 +30,6 @@ export interface IMessage {
 	createdAt?: string; // ISO string from backend
 	updatedAt?: string; // ISO string from backend
 }
-import { useAuth } from "../hooks/useAuth";
 
 // const socket = io("http://localhost:5000", {
 //   transports: ["websocket"], // avoid polling fallback
@@ -125,12 +127,12 @@ const MESSAGES = [
 ];
 
 export function ChatPage() {
-	const [selectedChat, setSelectedChat] = useState(CHATS[0]);
+	const [friendList, setFriendList] = useState<IUser[]>([]);
+	const [selectedChat, setSelectedChat] = useState(friendList[0]);
 	const [message, setMessage] = useState(""); // single input
 	const [messages, setMessages] = useState<IMessage[]>([]); // all chat messages
 	const { user } = useAuth();
 	// At top of ChatPage component, after useAuth()
-
 
 	// 	useEffect(() => {
 	// 		if (!user) return;
@@ -224,6 +226,12 @@ export function ChatPage() {
 	// 	socket.emit("send_message", newMsg); // emit to backend
 	// };
 
+	useEffect(() => {
+		getApi<IUser[]>(`/connection/matches`)
+			.then((res) => setFriendList(res))
+			.catch((err) => console.log(err));
+	}, []);
+
 	return (
 		<div className="h-screen flex">
 			{/* LEFT SIDEBAR — SAME */}
@@ -241,13 +249,13 @@ export function ChatPage() {
 
 				<ScrollArea className="flex-1">
 					<div className="p-2">
-						{CHATS.map((chat) => (
+						{ friendList && friendList?.map((chat) => (
 							<motion.button
-								key={chat.id}
+								key={chat?._id}
 								onClick={() => setSelectedChat(chat)}
 								whileHover={{ scale: 1.02 }}
 								className={`w-full p-3 rounded-xl mb-2 transition-all text-left ${
-									selectedChat.id === chat.id
+									selectedChat?._id === chat?._id
 										? "bg-[#007BFF]/20 border border-[#007BFF]/50"
 										: "hover:bg-white/5"
 								}`}
@@ -257,13 +265,13 @@ export function ChatPage() {
 										<Avatar className="w-12 h-12">
 											<AvatarImage
 												src={chat.avatar}
-												alt={chat.name}
+												alt={chat.username}
 											/>
 											<AvatarFallback>
-												{chat.name[0]}
+												{chat?.username?.split(" ")[0]}
 											</AvatarFallback>
 										</Avatar>
-										{chat.online && (
+										{chat.isOnline && (
 											<div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#121212] rounded-full" />
 										)}
 									</div>
@@ -271,21 +279,21 @@ export function ChatPage() {
 									<div className="flex-1 min-w-0">
 										<div className="flex items-center justify-between mb-1">
 											<span className="text-white truncate">
-												{chat.name}
+												{chat.username}
 											</span>
 											<span className="text-xs text-gray-400">
-												{chat.time}
+												{chat?.createdAt}
 											</span>
 										</div>
 										<div className="flex items-center justify-between">
-											<p className="text-sm text-gray-400 truncate">
-												{chat.lastMessage}
+											{/* <p className="text-sm text-gray-400 truncate">
+												{chat?.lastMessage ?? "Hello World"}
 											</p>
 											{chat.unread > 0 && (
 												<span className="ml-2 px-2 py-0.5 bg-[#007BFF] rounded-full text-xs">
 													{chat.unread}
 												</span>
-											)}
+											)} */}
 										</div>
 									</div>
 								</div>
@@ -302,21 +310,21 @@ export function ChatPage() {
 						<div className="relative">
 							<Avatar className="w-10 h-10">
 								<AvatarImage
-									src={selectedChat.avatar}
-									alt={selectedChat.name}
+									src={selectedChat?.avatar}
+									alt={selectedChat?.username}
 								/>
 								<AvatarFallback>
-									{selectedChat.name[0]}
+									{selectedChat?.username?.split(" ")[0]}
 								</AvatarFallback>
 							</Avatar>
-							{selectedChat.online && (
+							{selectedChat?.isOnline && (
 								<div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#121212] rounded-full" />
 							)}
 						</div>
 						<div>
-							<h3 className="text-white">{selectedChat.name}</h3>
+							<h3 className="text-white">{selectedChat?.username}</h3>
 							<p className="text-sm text-gray-400">
-								{selectedChat.online ? "Active now" : "Offline"}
+								{selectedChat?.isOnline ? "Active now" : "Offline"}
 							</p>
 						</div>
 					</div>
@@ -404,9 +412,7 @@ export function ChatPage() {
 										onChange={(e) =>
 											setMessage(e.target.value)
 										} // update string directly
-										onKeyPress={(e) =>
-											e.key === "Enter"
-										}
+										onKeyPress={(e) => e.key === "Enter"}
 										placeholder="Type a message..."
 										className="flex-1 bg-transparent border-0 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0"
 									/>
@@ -423,7 +429,7 @@ export function ChatPage() {
 						</div>
 
 						<Button
-							onClick={()=>{}}
+							onClick={() => {}}
 							size="icon"
 							className="w-12 h-12 bg-linear-to-r from-[#007BFF] to-[#8A2BE2] rounded-full hover:opacity-90"
 						>
