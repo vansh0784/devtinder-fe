@@ -6,17 +6,9 @@ import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import {
-	User,
-	Bell,
-	Shield,
-	Moon,
-	Sun,
-	Github,
-	Trash2,
-} from "lucide-react";
+import { User, Bell, Shield, Moon, Sun, Github, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
-
+import { useAuth } from "../hooks/useAuth";
 
 // interface IUpdateUser {
 //   firstname?: string;
@@ -27,8 +19,8 @@ import { motion } from "framer-motion";
 //   image?: File;
 // }
 
-
 export function SettingsPage() {
+	const { user } = useAuth();
 	const [darkMode, setDarkMode] = useState(true);
 	const [notifications, setNotifications] = useState({
 		matches: true,
@@ -81,7 +73,7 @@ export function SettingsPage() {
 							<div className="flex items-center gap-6 mb-8">
 								<Avatar className="w-24 h-24 border-4 border-[#007BFF]">
 									<AvatarImage
-										src="https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=200"
+										src={`${user?.avatar}`}
 										alt="Profile"
 									/>
 									<AvatarFallback>AJ</AvatarFallback>
@@ -103,7 +95,9 @@ export function SettingsPage() {
 										</Label>
 										<Input
 											id="firstName"
-											defaultValue="Alex"
+											defaultValue={
+												user?.username?.split(" ")[0]
+											}
 											className="bg-white/5 border-white/10 text-white"
 										/>
 									</div>
@@ -113,7 +107,9 @@ export function SettingsPage() {
 										</Label>
 										<Input
 											id="lastName"
-											defaultValue="Johnson"
+											defaultValue={
+												user?.username?.split(" ")[1]
+											}
 											className="bg-white/5 border-white/10 text-white"
 										/>
 									</div>
@@ -123,7 +119,7 @@ export function SettingsPage() {
 									<Label htmlFor="username">Username</Label>
 									<Input
 										id="username"
-										defaultValue="@alexjohnson"
+										defaultValue={`@${user?.username}`}
 										className="bg-white/5 border-white/10 text-white"
 									/>
 								</div>
@@ -133,7 +129,7 @@ export function SettingsPage() {
 									<Input
 										id="email"
 										type="email"
-										defaultValue="alex@devtinder.com"
+										defaultValue={`${user?.email}`}
 										className="bg-white/5 border-white/10 text-white"
 									/>
 								</div>
@@ -143,7 +139,7 @@ export function SettingsPage() {
 									<textarea
 										id="bio"
 										rows={4}
-										defaultValue="Full-stack developer passionate about building tools that make developers' lives easier."
+										defaultValue={`${user?.bio}`}
 										className="w-full rounded-xl bg-white/5 border border-white/10 text-white p-3 resize-none"
 									/>
 								</div>
@@ -152,7 +148,7 @@ export function SettingsPage() {
 									<Label htmlFor="location">Location</Label>
 									<Input
 										id="location"
-										defaultValue="San Francisco, CA"
+										defaultValue={`${user?.location}`}
 										className="bg-white/5 border-white/10 text-white"
 									/>
 								</div>
@@ -161,7 +157,7 @@ export function SettingsPage() {
 									<Label htmlFor="website">Website</Label>
 									<Input
 										id="website"
-										defaultValue="alexjohnson.dev"
+										defaultValue={`${user?.portfolio}`}
 										className="bg-white/5 border-white/10 text-white"
 									/>
 								</div>

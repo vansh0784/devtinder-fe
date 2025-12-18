@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { X, Heart, Star, MapPin, Code2, Zap } from "lucide-react";
@@ -9,6 +9,9 @@ import {
 	AnimatePresence,
 	type PanInfo,
 } from "framer-motion";
+import { type IUser } from "./ProfilePage";
+import { getApi, postApi } from "../utils/api";
+import { toast } from "sonner";
 
 const DEVELOPERS = [
 	{
@@ -78,12 +81,22 @@ const DEVELOPERS = [
 	},
 ];
 
+interface IBaseResponse {
+	statusCode: number;
+	message: string;
+	access_token?: string;
+	data?: any;
+}
+
 export function MatchPage() {
-	const [currentIndex, setCurrentIndex] = useState(0);
+	const [allUser, setAllUser] = useState<IUser[]>([]);
+	const [currentIndex, setCurrentIndex] = useState<number>(
+		allUser?.length | 0
+	);
 	const [matches, setMatches] = useState<number[]>([]);
 	const [passes, setPasses] = useState<number[]>([]);
 
-	const currentDev = DEVELOPERS[currentIndex];
+	const currentDev: IUser = allUser[currentIndex];
 	const x = useMotionValue(0);
 	const rotate = useTransform(x, [-200, 200], [-25, 25]);
 	const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
@@ -103,17 +116,27 @@ export function MatchPage() {
 	};
 
 	const handleLike = () => {
-		if (currentDev) {
-			setMatches([...matches, currentDev.id]);
-			nextCard();
-		}
+		if (!currentDev?._id) return;
+		postApi<{ recieverId: string }, IBaseResponse>(
+			`/connection/right`,
+			{ recieverId: currentDev?._id }
+		)
+			.then((res) => {
+				if (res.statusCode === 200)
+					toast.success("Request sent successfully");
+				nextCard();
+			})
+			.catch(() => toast.error("Request failed, Please try later"));
 	};
 
 	const handlePass = () => {
-		if (currentDev) {
-			setPasses([...passes, currentDev.id]);
-			nextCard();
-		}
+		if (!currentDev?._id) return;
+		postApi<{ recieverId: string }, IBaseResponse>(
+			`/connection/left`,
+			{ recieverId: currentDev?._id }
+		)
+			.then(() => nextCard())
+			.catch(() => toast.error("Request failed, Please try later"));
 	};
 
 	const nextCard = () => {
@@ -169,6 +192,17 @@ export function MatchPage() {
 		);
 	}
 
+	useEffect(() => {
+		getApi<IUser[]>("/devs")
+			.then((res) => setAllUser(res.reverse()))
+			.catch((err) => {
+				console.error(err);
+				setAllUser([]);
+			});
+	}, []);
+
+	console.log("All user", allUser);
+
 	return (
 		<div className="min-h-screen flex items-center justify-center p-6">
 			<div className="w-full max-w-md">
@@ -182,10 +216,11 @@ export function MatchPage() {
 				</div>
 				<div className="relative h-[600px] flex items-center justify-center">
 					<AnimatePresence>
-						{DEVELOPERS.slice(currentIndex, currentIndex + 2).map(
-							(dev, index) => (
+						{allUser
+							.slice(currentIndex, currentIndex + 2)
+							.map((dev, index) => (
 								<motion.div
-									key={dev.id}
+									key={dev?._id}
 									style={{
 										x: index === 0 ? x : 0,
 										rotate: index === 0 ? rotate : 0,
@@ -214,7 +249,7 @@ export function MatchPage() {
 										}}
 									>
 										<div
-											className={`h-40 bg-linear-to-r ${dev.gradient} relative`}
+											className={`h-40 bg-linear-to-r from-[#8A2BE2] to-[#FF1493] relative`}
 										>
 											<div className="absolute inset-0 flex items-center justify-center opacity-20">
 												<Code2 className="w-32 h-32 text-white" />
@@ -223,21 +258,25 @@ export function MatchPage() {
 										<div className="relative -mt-16 px-6">
 											<Avatar className="w-32 h-32 border-4 border-[#1C1C1E] mx-auto shadow-2xl">
 												<AvatarImage
-													src={dev.avatar}
-													alt={dev.name}
+													src={dev?.avatar}
+													alt={dev?.username}
 												/>
 												<AvatarFallback>
-													{dev.name[0]}
+													{
+														dev?.username?.split(
+															" "
+														)[0]
+													}
 												</AvatarFallback>
 											</Avatar>
 										</div>
 										<div className="p-6 pt-4 bg-[#1C1C1E]">
 											<div className="text-center mb-6">
 												<h2 className="text-2xl text-white mb-1">
-													{dev.name}
+													{dev.username}
 												</h2>
 												<p className="text-gray-400 mb-4">
-													{dev.username}
+													{`@${dev.username}`}
 												</p>
 												<p className="text-gray-300 mb-4">
 													{dev.bio}
@@ -250,7 +289,7 @@ export function MatchPage() {
 													</div>
 													<div className="flex items-center gap-1">
 														<Star className="w-4 h-4 text-yellow-500" />
-														{dev.githubStars}
+														{2200}
 													</div>
 												</div>
 											</div>
@@ -262,14 +301,17 @@ export function MatchPage() {
 													</span>
 												</div>
 												<div className="flex flex-wrap gap-2">
-													{dev.skills.map((skill) => (
-														<Badge
-															key={skill}
-															className="bg-[#007BFF]/20 border border-[#007BFF]/30"
-														>
-															{skill}
-														</Badge>
-													))}
+													{dev?.skills &&
+														dev?.skills.map(
+															(skill) => (
+																<Badge
+																	key={skill}
+																	className="bg-[#007BFF]/20 border border-[#007BFF]/30"
+																>
+																	{skill}
+																</Badge>
+															)
+														)}
 												</div>
 											</div>
 											<div className="mb-6">
@@ -280,42 +322,36 @@ export function MatchPage() {
 													</span>
 												</div>
 												<div className="flex flex-wrap gap-2">
-													{dev.interests.map(
-														(interest) => (
-															<Badge
-																key={interest}
-																variant="outline"
-																className="border-white/20 text-white"
-															>
-																{interest}
-															</Badge>
-														)
-													)}
+													{dev?.interests &&
+														dev?.interests.map(
+															(interest) => (
+																<Badge
+																	key={
+																		interest
+																	}
+																	variant="outline"
+																	className="border-white/20 text-white"
+																>
+																	{interest}
+																</Badge>
+															)
+														)}
 												</div>
 											</div>
 											<div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
 												<div className="text-center">
 													<div className="text-xl text-white">
-														{dev.githubStars}
+														{3320}
 													</div>
 													<div className="text-sm text-gray-400">
 														GitHub Stars
-													</div>
-												</div>
-												<div className="text-center">
-													<div className="text-xl text-white">
-														{dev.projects}
-													</div>
-													<div className="text-sm text-gray-400">
-														Projects
 													</div>
 												</div>
 											</div>
 										</div>
 									</div>
 								</motion.div>
-							)
-						)}
+							))}
 					</AnimatePresence>
 				</div>
 				<div className="flex justify-center gap-6 mt-8">
@@ -338,7 +374,7 @@ export function MatchPage() {
 					</motion.button>
 				</div>
 				<div className="text-center mt-6 text-gray-400 text-sm">
-					{currentIndex + 1} / {DEVELOPERS.length}
+					{currentIndex + 1} / {allUser && allUser?.length}
 				</div>
 			</div>
 		</div>

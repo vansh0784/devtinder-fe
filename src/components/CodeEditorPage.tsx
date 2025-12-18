@@ -4,6 +4,11 @@ import { Textarea } from "./ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Card } from "./ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
+import Editor from "@monaco-editor/react";
+import * as Y from "yjs";
+import { WebsocketProvider } from "y-websocket";
+import { MonacoBinding } from "y-monaco";
+import { io } from "socket.io-client";
 import {
 	Play,
 	Download,
@@ -210,15 +215,27 @@ export function CodeEditorPage() {
 	const [activeCollaborators, setActiveCollaborators] = useState<
 		Collaborator[]
 	>([]);
-	const [cursorPosition, setCursorPosition] = useState(0);
+	const [_, setCursorPosition] = useState(0);
 	const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
 	const [invitedFriends, setInvitedFriends] = useState<Set<string>>(
 		new Set()
 	);
 	const [copiedLink, setCopiedLink] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
-	console.log(cursorPosition)
+
+	const monacoEditorRef = useRef<any>(null);
+	const monacoInstanceRef = useRef<any>(null);
+	const ydocRef = useRef<Y.Doc | null>(null);
+	const providerRef = useRef<WebsocketProvider | null>(null);
+	const bindingRef = useRef<MonacoBinding | null>(null);
+	const [canEdit, setCanEdit] = useState(false);
+
+	const socketRef = useRef<any>(null);
+
 	const sessionLink = "https://devtinder.dev/code/session/abc123xyz";
+	const permissionSocketUrl = (import.meta.env.NEXT_PUBLIC_PERMISSION_SOCKET_URL) || "http://localhost:4000"; // change in prod
+	const ywsUrl = (import.meta.env.NEXT_PUBLIC_YWS_URL) || "ws://localhost:1234"; // change in prod
+
 	useEffect(() => {
 		if (collaborationEnabled) {
 			// Simulate Sarah joining after 1 second
@@ -294,12 +311,162 @@ export function CodeEditorPage() {
 		return () => clearInterval(simulateEdit);
 	}, [collaborationEnabled, activeCollaborators]);
 
+	useEffect(() => {
+		// when collaboration toggled on -> connect to permission socket and Yjs provider
+		if (!collaborationEnabled) {
+			// disconnect if present
+			socketRef.current?.disconnect?.();
+			providerRef.current?.disconnect?.();
+			ydocRef.current?.destroy?.();
+			ydocRef.current = null;
+			providerRef.current = null;
+			bindingRef.current = null;
+			monacoEditorRef.current && monacoEditorRef.current.updateOptions({ readOnly: false }); // solo mode editable
+			setCanEdit(false);
+			return;
+		}
+
+		// connect to permission socket (Socket.IO)
+		// NOTE: pass token in query if you use JWT auth: { query: { token: yourToken } }
+		socketRef.current = io(permissionSocketUrl, { autoConnect: true });
+
+		socketRef.current.on("connect", () => {
+			// join room (use your real roomId in production)
+			socketRef.current.emit("join-room", { roomId: "session-abc123xyz" });
+		});
+		socketRef.current.on("permission-update", ({ editors }: { editors: string[] }) => {
+			// if your user id is included, allow edits. Here we use a simple client id fallback
+			const myId = getLocalUserId();
+			const allowed = editors.includes(myId);
+			setCanEdit(allowed);
+			// update monaco readOnly if mounted
+			if (monacoEditorRef.current) monacoEditorRef.current.updateOptions({ readOnly: !allowed });
+		});
+		socketRef.current.on("presence", ({ users }: any) => {
+			// you can merge presence with your activeCollaborators UI
+			// For demo we do nothing here (your simulated collaborators remain)
+			console.debug("presence", users);
+		});
+		socketRef.current.on("edit-request", (data: any) => {
+			// owner receives an edit-request notification
+			toast(`${data.from?.name || "Someone"} requested edit access`);
+		});
+		socketRef.current.on("permission-error", (msg: string) => {
+			toast.error(msg);
+		});
+
+		// create Yjs doc + provider
+		const ydoc = new Y.Doc();
+		ydocRef.current = ydoc;
+
+		// token param: if you have JWT, append it so y-websocket server can verify permissions
+		const tokenParam = ""; // e.g. `?token=${encodeURIComponent(yourJwt)}`
+		const provider = new WebsocketProvider(`${ywsUrl}${tokenParam}`, `doc-session-abc123xyz`, ydoc, {
+			// optional awareness handling
+		});
+		providerRef.current = provider;
+
+		// set local presence (used by awareness)
+		provider.awareness.setLocalStateField("user", {
+			id: getLocalUserId(),
+			name: getLocalUserName(),
+		});
+
+		// if Monaco mounted already -> bind below in "onEditorMount"
+		// but if editor is already mounted we can create binding immediately.
+		// We'll create binding in onEditorMount to ensure proper model.
+
+		// cleanup when component unmounts or collaboration disabled
+		return () => {
+			socketRef.current?.disconnect?.();
+			providerRef.current?.disconnect?.();
+			ydocRef.current?.destroy?.();
+			ydocRef.current = null;
+			bindingRef.current = null;
+		};
+	}, [collaborationEnabled]);
+
+	function getLocalUserId() {
+		// If you have auth, use the real user id. For demo, use localStorage fallback.
+		const stored = typeof window !== "undefined" ? window.localStorage.getItem("devtinder_user_id") : null;
+		if (stored) return stored;
+		const id = `user-${Math.random().toString(36).slice(2, 9)}`;
+		try { window.localStorage.setItem("devtinder_user_id", id); } catch {}
+		return id;
+	}
+	function getLocalUserName() {
+		const stored = typeof window !== "undefined" ? window.localStorage.getItem("devtinder_user_name") : null;
+		if (stored) return stored;
+		const name = "You";
+		try { window.localStorage.setItem("devtinder_user_name", name); } catch {}
+		return name;
+	}
+
+	function handleMonacoMount(editor: any, monaco: any) {
+		monacoEditorRef.current = editor;
+		monacoInstanceRef.current = monaco;
+
+		// ensure a model exists
+		let model = editor.getModel();
+		if (!model) {
+			model = monaco.editor.createModel(code, language);
+			editor.setModel(model);
+		}
+
+		// if Yjs provider exists, bind Monaco to Yjs
+		if (ydocRef.current && providerRef.current) {
+			const yText = ydocRef.current.getText("monaco");
+			// If there is an existing binding, destroy it first
+			if (bindingRef.current) {
+				try { bindingRef.current.destroy(); } catch {}
+				bindingRef.current = null;
+			}
+
+			// MonacoBinding expects the Monaco model instance (monaco model), editor set(s) and awareness
+			const binding = new MonacoBinding(yText, model, new Set([editor]), providerRef.current.awareness);
+			bindingRef.current = binding;
+
+			// initialize local content if empty (so first join shows initial code)
+			if (yText.length === 0) {
+				// seed with current code
+				ydocRef.current.transact(() => {
+					yText.insert(0, code || STARTER_CODE[language]);
+				});
+			}
+
+			// set editor readOnly depending on permission (canEdit)
+			editor.updateOptions({ readOnly: !canEdit });
+
+			// react to awareness changes (presence/cursor updates)
+			providerRef.current.awareness.on("change", (changes: any) => {
+				// you can read current awareness states:
+				const states = Array.from(providerRef.current!.awareness.getStates().entries()).map(([clientId, state]) => state);
+				// merge awareness into your activeCollaborators UI if desired
+				// (left as an exercise — you already have a simulated UI)
+			});
+		}
+
+		// handle local change events when collaboration is NOT enabled: update `code` state for run, preview etc
+		if (!collaborationEnabled) {
+			editor.onDidChangeModelContent(() => {
+				setCode(editor.getValue());
+			});
+		}
+	}
+
+
 	const handleLanguageChange = (lang: string) => {
 		const newLang = lang as keyof typeof STARTER_CODE;
 		setLanguage(newLang);
 		setCode(STARTER_CODE[newLang]);
 		setOutput("");
 		setError("");
+		// update Monaco model if present
+		if (monacoInstanceRef.current && monacoEditorRef.current) {
+			const monaco = monacoInstanceRef.current;
+			const model = monaco.editor.createModel(STARTER_CODE[newLang], newLang === "javascript" ? "javascript" : newLang);
+			monacoEditorRef.current.setModel(model);
+		}
 	};
 
 	const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -311,40 +478,25 @@ export function CodeEditorPage() {
 		setIsRunning(true);
 		setError("");
 		setOutput("");
-
 		try {
 			if (language === "javascript") {
 				const logs: string[] = [];
 				const originalLog = console.log;
 				console.log = (...args: any[]) => {
-					logs.push(
-						args
-							.map((arg) =>
-								typeof arg === "object"
-									? JSON.stringify(arg, null, 2)
-									: String(arg)
-							)
-							.join(" ")
-					);
+					logs.push(args.map(a => typeof a === "object" ? JSON.stringify(a, null, 2) : String(a)).join(" "));
 					originalLog(...args);
 				};
-
 				try {
-					const result = new Function(code)();
-					if (result !== undefined) {
-						logs.push(`→ ${result}`);
-					}
+					const editorValue = collaborationEnabled && monacoEditorRef.current ? monacoEditorRef.current.getValue() : code;
+					const result = new Function(editorValue)();
+					if (result !== undefined) logs.push(`→ ${result}`);
 				} finally {
 					console.log = originalLog;
 				}
-
-				setOutput(
-					logs.length > 0
-						? logs.join("\n")
-						: "Code executed successfully (no output)"
-				);
+				setOutput(logs.length > 0 ? logs.join("\n") : "Code executed successfully (no output)");
 			} else if (language === "json") {
-				const parsed = JSON.parse(code);
+				const editorValue = collaborationEnabled && monacoEditorRef.current ? monacoEditorRef.current.getValue() : code;
+				const parsed = JSON.parse(editorValue);
 				setOutput(JSON.stringify(parsed, null, 2));
 			} else if (language === "html" || language === "css") {
 				setOutput("Preview updated in the preview pane →");
@@ -886,19 +1038,32 @@ export function CodeEditorPage() {
 							</div>
 
 							<div className="relative">
-								<Textarea
-									ref={textareaRef}
-									value={code}
-									onChange={handleCodeChange}
-									onSelect={(e) =>
-										setCursorPosition(
-											e.currentTarget.selectionStart
-										)
-									}
-									className="min-h-[400px] font-mono text-sm bg-[#0A0A0A] border-white/10 text-white resize-none"
-									placeholder="Start coding..."
-									spellCheck={false}
-								/>
+								<div className="relative">
+								{!collaborationEnabled ? (
+									<Textarea
+										value={code}
+										onChange={handleCodeChange}
+										className="min-h-[400px] font-mono text-sm bg-[#0A0A0A] border-white/10 text-white resize-none"
+										placeholder="Start coding..."
+										spellCheck={false}
+									/>
+								) : (
+									<div style={{ height: 420 }}>
+										<Editor
+											height="420px"
+											defaultLanguage={language === "javascript" ? "javascript" : language === "json" ? "json" : language}
+											defaultValue={code}
+											onMount={handleMonacoMount}
+											options={{
+												fontSize: 13,
+												minimap: { enabled: false },
+												automaticLayout: true,
+												scrollBeyondLastLine: false
+											}}
+										/>
+									</div>
+								)} </div>
+
 								{collaborationEnabled &&
 									activeCollaborators.length > 0 && (
 										<div className="absolute top-0 left-0 pointer-events-none">
@@ -1125,6 +1290,7 @@ export function CodeEditorPage() {
 						</Card>
 					</motion.div>
 				</div>
+				
 				<motion.div
 					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}

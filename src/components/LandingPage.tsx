@@ -39,21 +39,21 @@ export function LandingPage() {
 						<Button
 							variant="ghost"
 							className="text-white  hover:text-[#007BFF]"
-							onClick={() => scrollToSection("features")}
+							onClick={() => scrollToSection("/features")}
 						>
 							Features
 						</Button>
 						<Button
 							variant="ghost"
 							className="text-white hover:text-[#007BFF]"
-							onClick={() => scrollToSection("about")}
+							onClick={() => scrollToSection("/about")}
 						>
 							About
 						</Button>
 						<Button
 							variant="outline"
 							className=" bg-[#19191a] text-[#007BFF] border-[#007BFF] hover:text-white"
-							onClick={() => onNavigate("auth")}
+							onClick={() => onNavigate("/auth")}
 						>
 							Sign In
 						</Button>

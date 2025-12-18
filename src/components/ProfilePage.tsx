@@ -13,35 +13,62 @@ import {
 	Calendar,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAuth } from "../hooks/useAuth";
 
-const PROFILE_DATA = {
-	name: "Alex Johnson",
-	username: "@alexjohnson",
-	avatar: "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=300",
-	bio: "Full-stack developer passionate about building tools that make developers' lives easier. Open source enthusiast. Coffee addict. ☕️",
-	location: "San Francisco, CA",
-	website: "alexjohnson.dev",
-	github: "alexjohnson",
-	followers: 2543,
-	following: 892,
-	joined: "January 2023",
-	skills: [
-		"React",
-		"TypeScript",
-		"Node.js",
-		"Python",
-		"Docker",
-		"AWS",
-		"PostgreSQL",
-		"GraphQL",
-	],
-	interests: ["Web Development", "Open Source", "DevOps", "AI/ML"],
-	stats: {
-		stars: 1234,
-		forks: 567,
-		projects: 42,
-	},
-};
+export interface IUser {
+	_id: string;
+	username: string;
+	age?: number;
+	email: string;
+	phone?: string;
+	skills?: string[];
+	bio?: string;
+	experienceLevel?: string;
+
+	github?: string;
+	linkedin?: string;
+	portfolio?: string;
+	interests?: [];
+
+	avatar?: string;
+	location?: string;
+	followers?: string;
+	following?: string;
+	isActive?: boolean;
+	isOnline?: boolean;
+
+	createdAt?: string;
+	updatedAt?: string;
+}
+
+// const user? = {
+// 	name: "Alex Johnson",
+// 	username: "@alexjohnson",
+// 	avatar: "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=300",
+// 	bio: "Full-stack developer passionate about building tools that make developers' lives easier. Open source enthusiast. Coffee addict. ☕️",
+// 	location: "San Francisco, CA",
+// 	website: "alexjohnson.dev",
+// 	github: "alexjohnson",
+// 	followers: 2543,
+// 	following: 892,
+// 	joined: "January 2023",
+// 	skills: [
+// 		"React",
+// 		"TypeScript",
+// 		"Node.js",
+// 		"Python",
+// 		"Docker",
+// 		"AWS",
+// 		"PostgreSQL",
+// 		"GraphQL",
+// 	],
+// 	interests: ["Web Development", "Open Source", "DevOps", "AI/ML"],
+// 	stats: {
+// 		stars: 1234,
+// 		forks: 567,
+// 		projects: 42,
+// 	},
+// };
 
 const PROJECTS = [
 	{
@@ -77,6 +104,8 @@ const PROJECTS = [
 ];
 
 export function ProfilePage() {
+	const { user } = useAuth();
+
 	return (
 		<div className="min-h-screen p-6 max-w-6xl mx-auto">
 			<motion.div
@@ -101,21 +130,18 @@ export function ProfilePage() {
 			>
 				<div className="flex flex-col md:flex-row gap-6 items-start">
 					<Avatar className="w-32 h-32 border-4 border-[#007BFF] shadow-xl">
-						<AvatarImage
-							src={PROFILE_DATA.avatar}
-							alt={PROFILE_DATA.name}
-						/>
-						<AvatarFallback>{PROFILE_DATA.name[0]}</AvatarFallback>
+						<AvatarImage src={user?.avatar} alt={user?.username} />
+						<AvatarFallback>{user?.username[0]}</AvatarFallback>
 					</Avatar>
 
 					<div className="flex-1">
 						<div className="flex items-start justify-between mb-4">
 							<div>
 								<h1 className="text-3xl text-white mb-1">
-									{PROFILE_DATA.name}
+									{user?.username}
 								</h1>
 								<p className="text-gray-400">
-									{PROFILE_DATA.username}
+									{user?.username}
 								</p>
 							</div>
 							<div className="flex gap-3">
@@ -132,48 +158,48 @@ export function ProfilePage() {
 						</div>
 
 						<p className="text-gray-300 mb-6 max-w-2xl">
-							{PROFILE_DATA.bio}
+							{user?.bio}
 						</p>
 
 						<div className="flex flex-wrap gap-4 text-sm text-gray-400 mb-6">
 							<div className="flex items-center gap-2">
 								<MapPin className="w-4 h-4" />
-								{PROFILE_DATA.location}
+								{user?.location}
 							</div>
 							<div className="flex items-center gap-2">
 								<LinkIcon className="w-4 h-4" />
 								<a
-									href={`https://${PROFILE_DATA.website}`}
+									href={`${user?.portfolio}`}
 									className="text-[#007BFF] hover:underline"
 								>
-									{PROFILE_DATA.website}
+									{user?.portfolio}
 								</a>
 							</div>
 							<div className="flex items-center gap-2">
 								<Github className="w-4 h-4" />
 								<a
-									href={`https://github.com/${PROFILE_DATA.github}`}
+									href={`https://github.com/${user?.github}`}
 									className="text-[#007BFF] hover:underline"
 								>
-									{PROFILE_DATA.github}
+									{user?.github}
 								</a>
 							</div>
 							<div className="flex items-center gap-2">
 								<Calendar className="w-4 h-4" />
-								Joined {PROFILE_DATA.joined}
+								Joined {user?.createdAt?.split("T")[0]}
 							</div>
 						</div>
 
 						<div className="flex gap-6">
 							<div>
 								<span className="text-white">
-									{PROFILE_DATA.followers}
+									{user?.followers ?? "100"}
 								</span>{" "}
 								<span className="text-gray-400">Followers</span>
 							</div>
 							<div>
 								<span className="text-white">
-									{PROFILE_DATA.following}
+									{user?.following ?? "85"}
 								</span>{" "}
 								<span className="text-gray-400">Following</span>
 							</div>
@@ -186,19 +212,19 @@ export function ProfilePage() {
 					{
 						icon: Star,
 						label: "Total Stars",
-						value: PROFILE_DATA.stats.stars,
+						value: 20,
 						color: "#FFD700",
 					},
 					{
 						icon: GitFork,
 						label: "Total Forks",
-						value: PROFILE_DATA.stats.forks,
+						value: 30,
 						color: "#007BFF",
 					},
 					{
 						icon: Users,
 						label: "Projects",
-						value: PROFILE_DATA.stats.projects,
+						value: 40,
 						color: "#8A2BE2",
 					},
 				].map((stat, index) => (
@@ -267,14 +293,15 @@ export function ProfilePage() {
 								Technical Skills
 							</h3>
 							<div className="flex flex-wrap gap-3">
-								{PROFILE_DATA.skills.map((skill) => (
-									<Badge
-										key={skill}
-										className="bg-linear-to-r from-[#007BFF]/20 to-[#8A2BE2]/20 border border-[#007BFF]/30 px-4 py-2"
-									>
-										{skill}
-									</Badge>
-								))}
+								{user?.skills &&
+									user?.skills.map((skill) => (
+										<Badge
+											key={skill}
+											className="bg-linear-to-r from-[#007BFF]/20 to-[#8A2BE2]/20 border border-[#007BFF]/30 px-4 py-2"
+										>
+											{skill}
+										</Badge>
+									))}
 							</div>
 						</Card>
 
@@ -283,7 +310,12 @@ export function ProfilePage() {
 								Interests
 							</h3>
 							<div className="flex flex-wrap gap-3">
-								{PROFILE_DATA.interests.map((interest) => (
+								{[
+									"Web Development",
+									"Open Source",
+									"DevOps",
+									"AI/ML",
+								].map((interest) => (
 									<Badge
 										key={interest}
 										variant="outline"

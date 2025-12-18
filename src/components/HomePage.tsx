@@ -4,6 +4,7 @@ import { Card } from "./ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { FaTelegramPlane } from "react-icons/fa";
 import {
 	Heart,
 	MessageCircle,
@@ -31,6 +32,7 @@ import {
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 const MOCK_POSTS = [
 	{
@@ -103,6 +105,7 @@ const MOCK_POSTS = [
 ];
 
 export function HomePage() {
+	const onNavigate = useNavigate();
 	const [likedPosts, setLikedPosts] = useState<number[]>([]);
 	const [savedPosts, setSavedPosts] = useState<number[]>([]);
 	const [hiredUsers, setHiredUsers] = useState<number[]>([]);
@@ -133,9 +136,9 @@ export function HomePage() {
 		setSelectedUser(post);
 		const defaultMessage = `Hi ${post.author.name},
 			I came across your profile on DevTinder and I'm impressed by your work, especially your recent post about "${post.content.substring(
-						0,
-						50
-					)}${post.content.length > 50 ? "..." : ""}".
+				0,
+				50
+			)}${post.content.length > 50 ? "..." : ""}".
 
 			I have an exciting opportunity that I think would be a great fit for your skills. Would you be interested in discussing a potential collaboration or position?
 
@@ -158,6 +161,7 @@ export function HomePage() {
 			setCustomMessage("");
 		}
 	};
+
 	const handleCreatePost = () => {
 		if (postContent.trim()) {
 			toast.success("Post created successfully!", {
@@ -231,6 +235,7 @@ export function HomePage() {
 									disabled={!postContent.trim()}
 									className="bg-linear-to-r from-[#007BFF] to-[#8A2BE2] hover:opacity-90 disabled:opacity-50"
 								>
+									<FaTelegramPlane />
 									Post
 								</Button>
 							</div>
@@ -272,7 +277,14 @@ export function HomePage() {
 						>
 							<Card className="glass border-white/10 p-6 hover:border-[#007BFF]/50 transition-colors">
 								<div className="flex items-start justify-between mb-4">
-									<div className="flex items-center gap-3">
+									<div
+										className="flex items-center gap-3"
+										onClick={() =>
+											onNavigate(
+												`/user/detail/${post.id}`
+											)
+										}
+									>
 										<Avatar className="w-12 h-12 border-2 border-[#007BFF]">
 											<AvatarImage
 												src={post.author.avatar}

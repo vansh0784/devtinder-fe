@@ -1,16 +1,10 @@
 import { createContext } from "react";
-
-// Define the IUser interface
-export interface IUser {
-  _id: string;
-  username: string;
-  email: string;
-}
+import { type IUser } from "../components/ProfilePage";
 
 // Define the AuthContext type
 export interface IAuthContext {
-  user: IUser | null;
-  setUser: React.Dispatch<React.SetStateAction<IUser | null>>;
+	user: IUser | null;
+	setUser: React.Dispatch<React.SetStateAction<IUser | null>>;
 }
 
 // Create the context

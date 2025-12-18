@@ -15,12 +15,13 @@ import { OnboardingPage } from "./components/OnboardingPage";
 import { NotFoundPage } from "./components/NotFoundPage";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider } from "./context/AuthProvider";
+import { UserProfilePage } from "./components/UserProfilePage";
 
 export default function App() {
   return (
     <AuthProvider>
     <Router>
-      
+
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/auth" element={<AuthPage />} />
@@ -38,14 +39,15 @@ export default function App() {
           <Route path="/project" element={<ProjectRoom />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/user/detail/:userId" element={<UserProfilePage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
 
       <Toaster position="top-right" theme="dark" />
-      
+
     </Router>
     </AuthProvider>
-    
+
   );
 }
