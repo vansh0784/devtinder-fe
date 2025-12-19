@@ -12,6 +12,8 @@ import {
 import { type IUser } from "./ProfilePage";
 import { getApi, postApi } from "../utils/api";
 import { toast } from "sonner";
+import { socket } from "../utils/socket";
+import { useAuth } from "../hooks/useAuth";
 
 const DEVELOPERS = [
 	{
@@ -89,6 +91,8 @@ interface IBaseResponse {
 }
 
 export function MatchPage() {
+	const { user } = useAuth();
+
 	const [allUser, setAllUser] = useState<IUser[]>([]);
 	const [currentIndex, setCurrentIndex] = useState<number>(
 		allUser?.length | 0
@@ -115,18 +119,42 @@ export function MatchPage() {
 		console.log(event);
 	};
 
+	// const handleLike = () => {
+	// 	if (!currentDev?._id) return;
+	// 	postApi<{ recieverId: string }, IBaseResponse>(
+	// 		`/connection/right`,
+	// 		{ recieverId: currentDev?._id }
+	// 	)
+	// 		.then((res) => {
+	// 			if (res.statusCode === 200)
+	// 				toast.success("Request sent successfully");
+	// 			nextCard();
+	// 		})
+	// 		.catch(() => toast.error("Request failed, Please try later"));
+	// };
 	const handleLike = () => {
-		if (!currentDev?._id) return;
+		if (!currentDev?._id || !user?._id) return;
+
 		postApi<{ recieverId: string }, IBaseResponse>(
 			`/connection/right`,
-			{ recieverId: currentDev?._id }
+			{ recieverId: currentDev._id }
 		)
 			.then((res) => {
-				if (res.statusCode === 200)
+				if (res.statusCode === 200) {
 					toast.success("Request sent successfully");
+
+					// 🔔 REAL-TIME REQUEST NOTIFICATION
+					socket.emit("send_request", {
+						senderId: user._id,
+						receiverId: currentDev._id,
+					});
+				}
+
 				nextCard();
 			})
-			.catch(() => toast.error("Request failed, Please try later"));
+			.catch(() =>
+				toast.error("Request failed, Please try later")
+			);
 	};
 
 	const handlePass = () => {
