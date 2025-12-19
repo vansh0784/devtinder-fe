@@ -2,9 +2,9 @@ import axios, { type AxiosRequestConfig } from "axios";
 
 const api = axios.create({
 	baseURL: "https://devtinder-be-1.onrender.com",
-	headers: {
-		Authorization: `Bearer`,
-	},
+	// headers: {
+	// 	Authorization: `Bearer`,
+	// },
 });
 
 api.interceptors.request.use(
@@ -65,3 +65,5 @@ export const deleteApi = async <TResponse>(
 };
 
 export default api;
+
+

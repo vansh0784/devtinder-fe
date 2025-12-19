@@ -2,6 +2,8 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import { Auth0Provider } from "@auth0/auth0-react";
 import App from "./App.tsx";
+import { NotificationProvider } from "./context/NotificationContext";
+import { AuthProvider } from "./context/AuthProvider";
 
 createRoot(document.getElementById("root")!).render(
 	<Auth0Provider
@@ -11,6 +13,13 @@ createRoot(document.getElementById("root")!).render(
 			redirect_uri: `${window.location.origin}/home`,
 		}}
 	>
-		<App />
+		<AuthProvider>
+
+			<NotificationProvider>
+				<App />
+			</NotificationProvider>
+		</AuthProvider>
+
+
 	</Auth0Provider>
 );

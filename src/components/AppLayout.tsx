@@ -9,10 +9,12 @@ import {
 	Settings,
 	Code2,
 } from "lucide-react";
+import { useNotifications } from "../context/NotificationContext";
 
 export function AppLayout() {
 	const navigate = useNavigate();
 	const location = useLocation();
+	const { notifications } = useNotifications();
 	const currentPath = location.pathname.replace("/", "") || "home";
 
 	const navItems = [
@@ -41,11 +43,10 @@ export function AppLayout() {
 						<button
 							key={item.id}
 							onClick={() => navigate(`/${item.id}`)}
-							className={`relative p-3 rounded-xl transition-all group ${
-								currentPath === item.id
+							className={`relative p-3 rounded-xl transition-all group ${currentPath === item.id
 									? "bg-[#007BFF] text-white"
 									: "text-gray-400 hover:text-white hover:bg-white/10"
-							}`}
+								}`}
 						>
 							<item.icon className="w-6 h-6" />
 							{currentPath === item.id && (
@@ -68,24 +69,25 @@ export function AppLayout() {
 				<div className="flex flex-col gap-4">
 					<button
 						onClick={() => navigate("/notifications")}
-						className={`relative p-3 rounded-xl transition-all ${
-							currentPath === "notifications"
+						className={`relative p-3 rounded-xl transition-all ${currentPath === "notifications"
 								? "bg-[#007BFF] text-white"
 								: "text-gray-400 hover:text-white hover:bg-white/10"
-						}`}
+							}`}
 					>
 						<Bell className="w-6 h-6" />
-						<span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs">
-							3
-						</span>
+						{notifications.length > 0 && (
+							<span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs">
+								{notifications.length}
+							</span>
+						)}
+
 					</button>
 					<button
 						onClick={() => navigate("/settings")}
-						className={`p-3 rounded-xl transition-all ${
-							currentPath === "settings"
+						className={`p-3 rounded-xl transition-all ${currentPath === "settings"
 								? "bg-[#007BFF] text-white"
 								: "text-gray-400 hover:text-white hover:bg-white/10"
-						}`}
+							}`}
 					>
 						<Settings className="w-6 h-6" />
 					</button>
