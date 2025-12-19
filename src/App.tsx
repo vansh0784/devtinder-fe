@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 // import  ProtectedRoute  from "./utils/ProtectedRoutes";
+import { useEffect } from "react";
+import { useAuth } from "./hooks/useAuth";
 import { AppLayout } from "./components/AppLayout";
 import { HomePage } from "./components/HomePage";
 import { ProfilePage } from "./components/ProfilePage";
@@ -16,10 +18,24 @@ import { NotFoundPage } from "./components/NotFoundPage";
 import { Toaster } from "./components/ui/sonner";
 import { AuthProvider } from "./context/AuthProvider";
 import { UserProfilePage } from "./components/UserProfilePage";
+import { socket } from './utils/socket';
 
 export default function App() {
+  const { user } = useAuth();
+
+  useEffect(() => {
+  if (user?._id) {
+    socket.auth = { userId: user._id };
+    
+    socket.connect();
+  }
+
+  return () => {
+    socket.disconnect();
+  };
+}, [user?._id]);
+
   return (
-    <AuthProvider>
     <Router>
 
       <Routes>
@@ -47,7 +63,6 @@ export default function App() {
       <Toaster position="top-right" theme="dark" />
 
     </Router>
-    </AuthProvider>
 
   );
 }

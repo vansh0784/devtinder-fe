@@ -17,6 +17,7 @@ import { socket } from "../utils/socket";
 import { useAuth } from "../hooks/useAuth";
 import { type IUser } from "./ProfilePage";
 import { getApi } from "../utils/api";
+import { useNotifications } from "../context/NotificationContext";
 
 export interface IMessage {
 	_id?: string; // MongoDB document ID, optional if not yet saved
@@ -121,6 +122,7 @@ const MESSAGES = [
 ];
 
 export function ChatPage() {
+	// const { clearNotification } = useNotifications();
 	const [friendList, setFriendList] = useState<IUser[]>([]);
 	const [selectedChat, setSelectedChat] = useState<IUser | null>(null);
 	const [message, setMessage] = useState(""); // single input
@@ -134,6 +136,8 @@ export function ChatPage() {
 	if (!user || !selectedChat) return;
 
 	const roomId = getRoomId(user._id, selectedChat._id);
+	// clearNotification(roomId);
+
 
 	// 1️⃣ Clear old messages immediately
 	setMessages([]);
@@ -244,7 +248,16 @@ export function ChatPage() {
 												{chat.username}
 											</span>
 											<span className="text-xs text-gray-400">
-												{chat?.createdAt}
+												{chat?.createdAt &&
+														new Date(
+															chat?.createdAt
+														).toLocaleTimeString(
+															[],
+															{
+																hour: "2-digit",
+																minute: "2-digit",
+															}
+														)}
 											</span>
 										</div>
 										<div className="flex items-center justify-between">
