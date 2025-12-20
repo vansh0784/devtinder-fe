@@ -133,38 +133,36 @@ export function ChatPage() {
 };
 
 	useEffect(() => {
-	if (!user || !selectedChat) return;
+		if (!user || !selectedChat) return;
 
 	const roomId = getRoomId(user._id, selectedChat._id);
-	// clearNotification(roomId);
 
+		// 1️⃣ Clear old messages immediately
+		setMessages([]);
 
-	// 1️⃣ Clear old messages immediately
-	setMessages([]);
+		// 2️⃣ Join room
+		socket.emit("join_room", {
+			roomId,
+			userId: user._id,
+		});
 
-	// 2️⃣ Join room
-	socket.emit("join_room", {
-		roomId,
-		userId: user._id,
-	});
+		// 3️⃣ Ask backend for chat history
+		socket.emit("load_messages", { roomId });
 
-	// 3️⃣ Ask backend for chat history
-	socket.emit("load_messages", { roomId });
+		// 4️⃣ Receive chat history
+		const handleHistory = (msgs: IMessage[]) => {
+			setMessages(msgs);
+		};
 
-	// 4️⃣ Receive chat history
-	const handleHistory = (msgs: IMessage[]) => {
-		setMessages(msgs);
-	};
+		// 5️⃣ Receive new messages
+		const handleReceive = (msg: IMessage) => {
+			if (msg.roomId === roomId) {
+				setMessages((prev) => [...prev, msg]);
+			}
+		};
 
-	// 5️⃣ Receive new messages
-	const handleReceive = (msg: IMessage) => {
-		if (msg.roomId === roomId) {
-			setMessages((prev) => [...prev, msg]);
-		}
-	};
-
-	socket.on("chat_history", handleHistory);
-	socket.on("receive_message", handleReceive);
+		socket.on("chat_history", handleHistory);
+		socket.on("receive_message", handleReceive);
 
 	return () => {
 		socket.off("chat_history", handleHistory);
@@ -173,32 +171,31 @@ export function ChatPage() {
 }, [user, selectedChat]);
 
 	const handleSend = () => {
-	if (!message.trim() || !user || !selectedChat) return;
+		if (!message.trim() || !user || !selectedChat) return;
 
-	const roomId = getRoomId(user._id, selectedChat._id);
+		const roomId = getRoomId(user._id, selectedChat._id);
 
-	const newMsg: IMessage = {
-		roomId,
-		senderId: user._id,
-		receiverId: selectedChat._id,
-		content: message,
-		read: false,
-		createdAt: new Date().toISOString(),
+		const newMsg: IMessage = {
+			roomId,
+			senderId: user._id,
+			receiverId: selectedChat._id,
+			content: message,
+			read: false,
+			createdAt: new Date().toISOString(),
+		};
+
+		setMessages((prev) => [...prev, newMsg]);
+		setMessage("");
+
+		socket.emit("send_message", newMsg);
 	};
-
-	setMessages((prev) => [...prev, newMsg]);
-	setMessage("");
-
-	socket.emit("send_message", newMsg);
-};
-
 
 	useEffect(() => {
 		getApi<IUser[]>(`/connection/matches`)
 			.then((res) => setFriendList(res))
 			.catch((err) => console.log(err));
 	}, []);
-	
+
 	return (
 		<div className="h-screen flex">
 			{/* LEFT SIDEBAR — SAME */}
@@ -216,31 +213,37 @@ export function ChatPage() {
 
 				<ScrollArea className="flex-1">
 					<div className="p-2">
-						{friendList && friendList?.map((chat) => (
-							<motion.button
-								key={chat?._id}
-								onClick={() => setSelectedChat(chat)}
-								whileHover={{ scale: 1.02 }}
-								className={`w-full p-3 rounded-xl mb-2 transition-all text-left ${selectedChat?._id === chat?._id
-									? "bg-[#007BFF]/20 border border-[#007BFF]/50"
-									: "hover:bg-white/5"
+						{friendList &&
+							friendList?.map((chat) => (
+								<motion.button
+									key={chat?._id}
+									onClick={() => setSelectedChat(chat)}
+									whileHover={{ scale: 1.02 }}
+									className={`w-full p-3 rounded-xl mb-2 transition-all text-left ${
+										selectedChat?._id === chat?._id
+											? "bg-[#007BFF]/20 border border-[#007BFF]/50"
+											: "hover:bg-white/5"
 									}`}
-							>
-								<div className="flex items-center gap-3">
-									<div className="relative">
-										<Avatar className="w-12 h-12">
-											<AvatarImage
-												src={chat.avatar}
-												alt={chat.username}
-											/>
-											<AvatarFallback>
-												{chat?.username?.split(" ")[0]}
-											</AvatarFallback>
-										</Avatar>
-										{chat.isOnline && (
-											<div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#121212] rounded-full" />
-										)}
-									</div>
+								>
+									<div className="flex items-center gap-3">
+										<div className="relative">
+											<Avatar className="w-12 h-12">
+												<AvatarImage
+													src={chat.avatar}
+													alt={chat.username}
+												/>
+												<AvatarFallback>
+													{
+														chat?.username?.split(
+															" "
+														)[0]
+													}
+												</AvatarFallback>
+											</Avatar>
+											{chat.isOnline && (
+												<div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-[#121212] rounded-full" />
+											)}
+										</div>
 
 									<div className="flex-1 min-w-0">
 										<div className="flex items-center justify-between mb-1">
@@ -289,9 +292,13 @@ export function ChatPage() {
 							)}
 						</div>
 						<div>
-							<h3 className="text-white">{selectedChat?.username}</h3>
+							<h3 className="text-white">
+								{selectedChat?.username}
+							</h3>
 							<p className="text-sm text-gray-400">
-								{selectedChat?.isOnline ? "Active now" : "Offline"}
+								{selectedChat?.isOnline
+									? "Active now"
+									: "Offline"}
 							</p>
 						</div>
 					</div>
@@ -330,22 +337,25 @@ export function ChatPage() {
 								initial={{ opacity: 0, y: 10 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ delay: index * 0.05 }}
-								className={`flex ${msg.senderId === user?._id
-									? "justify-end"
-									: "justify-start"
-									}`}
+								className={`flex ${
+									msg.senderId === user?._id
+										? "justify-end"
+										: "justify-start"
+								}`}
 							>
 								<div
-									className={`max-w-md ${msg.senderId === user?._id
-										? "order-2"
-										: ""
-										}`}
+									className={`max-w-md ${
+										msg.senderId === user?._id
+											? "order-2"
+											: ""
+									}`}
 								>
 									<div
-										className={`rounded-2xl px-4 py-3 ${msg.senderId === user?._id
-											? "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] text-white rounded-br-sm"
-											: "glass border border-white/10 text-white rounded-bl-sm"
-											}`}
+										className={`rounded-2xl px-4 py-3 ${
+											msg.senderId === user?._id
+												? "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] text-white rounded-br-sm"
+												: "glass border border-white/10 text-white rounded-bl-sm"
+										}`}
 									>
 										<p>{msg?.content}</p>
 									</div>
@@ -381,7 +391,6 @@ export function ChatPage() {
 												handleSend();
 											}
 										}}
-
 										placeholder="Type a message..."
 										className="flex-1 bg-transparent border-0 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0"
 									/>
@@ -404,7 +413,6 @@ export function ChatPage() {
 						>
 							<Send className="w-5 h-5" />
 						</Button>
-
 					</div>
 				</div>
 			</div>

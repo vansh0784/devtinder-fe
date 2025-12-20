@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -33,16 +33,45 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { getApi } from "../utils/api";
+
+interface IComment {
+	_id: string;
+	user: string;
+	text: string;
+	createdAt: string;
+}
+
+export interface IPost {
+	_id: string;
+	author: string;
+	authorName: string;
+	authorUsername: string;
+	authorAvatar: string;
+	authorVerified: boolean;
+	text: string;
+	images: string[];
+	code: string;
+	projectLink: string;
+	tags: string[];
+	likes: string[];
+	comments: IComment[];
+	shares: number;
+	isPinned: boolean;
+	visibility: "public" | "private";
+	createdAt: string;
+	updatedAt: string;
+}
 
 const MOCK_POSTS = [
 	{
-		id: 1,
-		author: {
-			name: "Sarah Chen",
-			username: "@sarahchen",
-			avatar: "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
-			verified: true,
-		},
+		_id: 1,
+		author: "03840470",
+		authorName: "Sarah Chen",
+		authorUsername: "@sarahchen",
+		authorAvatar:
+			"https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
+		authorVerified: true,
 		content:
 			"Just launched my new React component library! 🚀 It's open source and includes 50+ customizable components with TypeScript support. Check it out!",
 		code: `import { Button } from '@mylib/ui';\n\nfunction App() {\n  return <Button variant="gradient">Click me</Button>\n}`,
@@ -54,13 +83,13 @@ const MOCK_POSTS = [
 		projectLink: "github.com/sarahchen/ui-lib",
 	},
 	{
-		id: 2,
-		author: {
-			name: "Alex Rodriguez",
-			username: "@alexdev",
-			avatar: "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
-			verified: false,
-		},
+		_id: 2,
+		author: "03840470",
+		authorName: "Alex Rodriguez",
+		authorUsername: "@alexdev",
+		authorAvatar:
+			"https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
+		authorVerified: false,
 		content:
 			"Looking for a backend developer to collaborate on a SaaS project. Stack: Node.js, PostgreSQL, Docker. DM if interested! 💼",
 		tags: ["Node.js", "PostgreSQL", "Collaboration"],
@@ -70,13 +99,14 @@ const MOCK_POSTS = [
 		timestamp: "4h ago",
 	},
 	{
-		id: 3,
-		author: {
-			name: "Maya Patel",
-			username: "@mayabuilds",
-			avatar: "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
-			verified: true,
-		},
+		_id: 3,
+		author: "03840470",
+
+		authorName: "Maya Patel",
+		authorUsername: "@mayabuilds",
+		authorAvatar:
+			"https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
+		authorVerified: true,
 		content:
 			"Built a real-time collaborative whiteboard using WebSockets and Canvas API. Here's a quick demo of the architecture:",
 		image: "https://images.unsplash.com/photo-1760548425298-22aa4b60fc16?w=800",
@@ -87,13 +117,14 @@ const MOCK_POSTS = [
 		timestamp: "6h ago",
 	},
 	{
-		id: 4,
-		author: {
-			name: "James Wilson",
-			username: "@jwilson_dev",
-			avatar: "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
-			verified: true,
-		},
+		_id: 4,
+		author: "03840470",
+
+		authorName: "James Wilson",
+		authorUsername: "@jwilson_dev",
+		authorAvatar:
+			"https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
+		authorVerified: true,
 		content:
 			"Just finished a 30-day coding challenge! Built 30 different AI-powered tools. Here's what I learned about consistency and shipping fast 🧵",
 		tags: ["AI/ML", "Python", "Productivity"],
@@ -115,6 +146,8 @@ export function HomePage() {
 		(typeof MOCK_POSTS)[0] | null
 	>(null);
 	const [customMessage, setCustomMessage] = useState("");
+	const [feedPosts, setFeedPosts] = useState<IPost[]>([]);
+	console.log(feedPosts);
 
 	const toggleLike = (postId: number) => {
 		if (likedPosts.includes(postId)) {
@@ -134,7 +167,7 @@ export function HomePage() {
 
 	const openHireDialog = (post: (typeof MOCK_POSTS)[0]) => {
 		setSelectedUser(post);
-		const defaultMessage = `Hi ${post.author.name},
+		const defaultMessage = `Hi ${post?.authorName},
 			I came across your profile on DevTinder and I'm impressed by your work, especially your recent post about "${post.content.substring(
 				0,
 				50
@@ -151,9 +184,9 @@ export function HomePage() {
 
 	const sendHireMessage = () => {
 		if (selectedUser) {
-			setHiredUsers([...hiredUsers, selectedUser.id]);
+			setHiredUsers([...hiredUsers, selectedUser?._id]);
 			setHireDialogOpen(false);
-			toast.success(`Hire request sent to ${selectedUser.author.name}!`, {
+			toast.success(`Hire request sent to ${selectedUser?.authorName}!`, {
 				description:
 					"They'll receive your message and can respond via chat.",
 			});
@@ -170,6 +203,12 @@ export function HomePage() {
 			setPostContent("");
 		}
 	};
+
+	useEffect(() => {
+		getApi<IPost[]>(`/posts`)
+			.then((res) => setFeedPosts(res))
+			.catch((err) => console.log(err));
+	}, []);
 
 	return (
 		<div className="min-h-screen p-6 max-w-4xl mx-auto">
@@ -270,7 +309,7 @@ export function HomePage() {
 				<TabsContent value="trending" className="mt-6 space-y-6">
 					{MOCK_POSTS.map((post, index) => (
 						<motion.div
-							key={post.id}
+							key={post._id}
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.3, delay: index * 0.1 }}
@@ -281,25 +320,29 @@ export function HomePage() {
 										className="flex items-center gap-3"
 										onClick={() =>
 											onNavigate(
-												`/user/detail/${post.id}`
+												`/user/detail/${post?.author}`
 											)
 										}
 									>
 										<Avatar className="w-12 h-12 border-2 border-[#007BFF]">
 											<AvatarImage
-												src={post.author.avatar}
-												alt={post.author.name}
+												src={post?.authorAvatar}
+												alt={post?.authorName}
 											/>
 											<AvatarFallback>
-												{post.author.name[0]}
+												{`@${
+													post?.authorName?.split(
+														" "
+													)[0]
+												}`}
 											</AvatarFallback>
 										</Avatar>
 										<div>
 											<div className="flex items-center gap-2">
 												<span className="text-white">
-													{post.author.name}
+													{post?.authorName}
 												</span>
-												{post.author.verified && (
+												{post?.authorVerified && (
 													<div className="w-4 h-4 bg-[#007BFF] rounded-full flex items-center justify-center">
 														<svg
 															className="w-3 h-3 text-white"
@@ -316,8 +359,8 @@ export function HomePage() {
 												)}
 											</div>
 											<span className="text-sm text-gray-400">
-												{post.author.username} ·{" "}
-												{post.timestamp}
+												{post?.authorUsername} ·{" "}
+												{post?.timestamp}
 											</span>
 										</div>
 									</div>
@@ -333,15 +376,15 @@ export function HomePage() {
 											size="sm"
 											onClick={() => openHireDialog(post)}
 											disabled={hiredUsers.includes(
-												post.id
+												post?._id
 											)}
 											className={
-												hiredUsers.includes(post.id)
+												hiredUsers.includes(post?._id)
 													? "bg-green-500/20 text-green-500 border border-green-500/30 hover:bg-green-500/20"
 													: "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] hover:opacity-90"
 											}
 										>
-											{hiredUsers.includes(post.id) ? (
+											{hiredUsers.includes(post?._id) ? (
 												<>
 													<Check className="w-4 h-4 mr-1" />
 													Contacted
@@ -401,16 +444,20 @@ export function HomePage() {
 										<motion.button
 											whileHover={{ scale: 1.1 }}
 											whileTap={{ scale: 0.95 }}
-											onClick={() => toggleLike(post.id)}
+											onClick={() =>
+												toggleLike(post?._id)
+											}
 											className={`flex items-center gap-2 transition-colors ${
-												likedPosts.includes(post.id)
+												likedPosts.includes(post?._id)
 													? "text-red-500"
 													: "text-gray-400 hover:text-red-500"
 											}`}
 										>
 											<Heart
 												className={`w-5 h-5 ${
-													likedPosts.includes(post.id)
+													likedPosts.includes(
+														post?._id
+													)
 														? "fill-current"
 														: ""
 												}`}
@@ -418,7 +465,7 @@ export function HomePage() {
 											<span>
 												{post.likes +
 													(likedPosts.includes(
-														post.id
+														post?._id
 													)
 														? 1
 														: 0)}
@@ -436,16 +483,16 @@ export function HomePage() {
 									<motion.button
 										whileHover={{ scale: 1.1 }}
 										whileTap={{ scale: 0.95 }}
-										onClick={() => toggleSave(post.id)}
+										onClick={() => toggleSave(post?._id)}
 										className={`transition-colors ${
-											savedPosts.includes(post.id)
+											savedPosts.includes(post?._id)
 												? "text-[#007BFF]"
 												: "text-gray-400 hover:text-[#007BFF]"
 										}`}
 									>
 										<Bookmark
 											className={`w-5 h-5 ${
-												savedPosts.includes(post.id)
+												savedPosts.includes(post?._id)
 													? "fill-current"
 													: ""
 											}`}
@@ -489,19 +536,19 @@ export function HomePage() {
 								<div className="flex items-center gap-3 mt-3 p-3 bg-white/5 rounded-xl border border-white/10">
 									<Avatar className="w-10 h-10 border-2 border-[#007BFF]">
 										<AvatarImage
-											src={selectedUser.author.avatar}
-											alt={selectedUser.author.name}
+											src={selectedUser?.authorAvatar}
+											alt={selectedUser?.authorName}
 										/>
 										<AvatarFallback>
-											{selectedUser.author.name[0]}
+											{selectedUser?.authorUsername}
 										</AvatarFallback>
 									</Avatar>
 									<div>
 										<div className="flex items-center gap-2">
 											<span className="text-white">
-												{selectedUser.author.name}
+												{selectedUser?.authorUsername}
 											</span>
-											{selectedUser.author.verified && (
+											{selectedUser?.authorVerified && (
 												<div className="w-3 h-3 bg-[#007BFF] rounded-full flex items-center justify-center">
 													<svg
 														className="w-2 h-2 text-white"
@@ -518,7 +565,7 @@ export function HomePage() {
 											)}
 										</div>
 										<span className="text-xs text-gray-400">
-											{selectedUser.author.username}
+											{selectedUser?.authorUsername}
 										</span>
 									</div>
 									<div className="ml-auto flex flex-wrap gap-1">
@@ -575,7 +622,7 @@ export function HomePage() {
 									</span>
 									<span>
 										Your message will be sent directly to{" "}
-										{selectedUser?.author.name}'s inbox
+										{selectedUser?.authorName}'s inbox
 									</span>
 								</li>
 								<li className="flex items-start gap-2">
