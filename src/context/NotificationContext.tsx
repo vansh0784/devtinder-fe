@@ -117,15 +117,24 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
 
 	// 🔹 Realtime socket notifications
 	useEffect(() => {
+		socket.on("connect", async () => {
+    console.log("🔄 Socket connected — refreshing notifications");
+    if (user?._id) {
+      const data = await getApi<Notification[]>("/notifications/unread");
+      setNotifications(data);
+    }
+  });
+
 		socket.on("notification", (data: Notification) => {
 			console.log("🔔 Notification received:", data);
 			setNotifications((prev) => [data, ...prev]);
 		});
 
 		return () => {
+			socket.off("connect");
 			socket.off("notification");
 		};
-	}, []);
+	}, [user]);
 
 	// 🔹 Mark single notification read
 	const markAsRead = async (id: string) => {
