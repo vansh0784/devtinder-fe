@@ -123,6 +123,8 @@ const MESSAGES = [
 
 export function ChatPage() {
 	// const { clearNotification } = useNotifications();
+	const { notifications, markAsRead } = useNotifications();
+
 	const [friendList, setFriendList] = useState<IUser[]>([]);
 	const [selectedChat, setSelectedChat] = useState<IUser | null>(null);
 	const [message, setMessage] = useState(""); // single input
@@ -131,6 +133,19 @@ export function ChatPage() {
 	const getRoomId = (userId1: string, userId2: string) => {
 	return [userId1, userId2].sort().join("_");
 };
+useEffect(() => {
+  if (!selectedChat || !user) return;
+
+  notifications
+    .filter(
+      n =>
+        n.type === "MESSAGE" &&
+        n.senderId === selectedChat._id &&
+        !n.read,
+    )
+    .forEach(n => markAsRead(n._id));
+}, [selectedChat, notifications, user, markAsRead]);
+
 
 	useEffect(() => {
 		if (!user || !selectedChat) return;
@@ -157,7 +172,8 @@ export function ChatPage() {
 		// 5️⃣ Receive new messages
 		const handleReceive = (msg: IMessage) => {
 			if (msg.roomId === roomId) {
-				setMessages((prev) => [...prev, msg]);
+				setMessages((prev) =>prev.some(m => m._id === msg._id) ? prev : [...prev, msg]
+    );
 			}
 		};
 
