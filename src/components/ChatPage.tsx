@@ -18,6 +18,7 @@ import { useAuth } from "../hooks/useAuth";
 import { type IUser } from "./ProfilePage";
 import { getApi } from "../utils/api";
 import { useNotifications } from "../context/NotificationContext";
+import { useRef } from "react";
 
 export interface IMessage {
 	_id?: string; // MongoDB document ID, optional if not yet saved
@@ -122,20 +123,37 @@ const MESSAGES = [
 ];
 
 export function ChatPage() {
+	const bottomRef = useRef<HTMLDivElement>(null);
+
 	// const { clearNotification } = useNotifications();
+	const { notifications, markAsRead } = useNotifications();
+
 	const [friendList, setFriendList] = useState<IUser[]>([]);
 	const [selectedChat, setSelectedChat] = useState<IUser | null>(null);
 	const [message, setMessage] = useState(""); // single input
 	const [messages, setMessages] = useState<IMessage[]>([]); // all chat messages
 	const { user } = useAuth();
 	const getRoomId = (userId1: string, userId2: string) => {
-	return [userId1, userId2].sort().join("_");
-};
+		return [userId1, userId2].sort().join("_");
+	};
+	useEffect(() => {
+		if (!selectedChat || !user) return;
+
+		notifications
+			.filter(
+				n =>
+					n.type === "MESSAGE" &&
+					n.senderId === selectedChat._id &&
+					!n.read,
+			)
+			.forEach(n => markAsRead(n._id));
+	}, [selectedChat, notifications, user, markAsRead]);
+
 
 	useEffect(() => {
 		if (!user || !selectedChat) return;
 
-	const roomId = getRoomId(user._id, selectedChat._id);
+		const roomId = getRoomId(user._id, selectedChat._id);
 
 		// 1️⃣ Clear old messages immediately
 		setMessages([]);
@@ -157,18 +175,23 @@ export function ChatPage() {
 		// 5️⃣ Receive new messages
 		const handleReceive = (msg: IMessage) => {
 			if (msg.roomId === roomId) {
-				setMessages((prev) => [...prev, msg]);
+				setMessages((prev) => prev.some(m => m._id === msg._id) ? prev : [...prev, msg]
+				);
 			}
 		};
 
 		socket.on("chat_history", handleHistory);
 		socket.on("receive_message", handleReceive);
 
-	return () => {
-		socket.off("chat_history", handleHistory);
-		socket.off("receive_message", handleReceive);
-	};
-}, [user, selectedChat]);
+		return () => {
+			socket.off("chat_history", handleHistory);
+			socket.off("receive_message", handleReceive);
+		};
+	}, [user, selectedChat]);
+
+	useEffect(() => {
+		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+	}, [messages]);
 
 	const handleSend = () => {
 		if (!message.trim() || !user || !selectedChat) return;
@@ -219,11 +242,10 @@ export function ChatPage() {
 									key={chat?._id}
 									onClick={() => setSelectedChat(chat)}
 									whileHover={{ scale: 1.02 }}
-									className={`w-full p-3 rounded-xl mb-2 transition-all text-left ${
-										selectedChat?._id === chat?._id
+									className={`w-full p-3 rounded-xl mb-2 transition-all text-left ${selectedChat?._id === chat?._id
 											? "bg-[#007BFF]/20 border border-[#007BFF]/50"
 											: "hover:bg-white/5"
-									}`}
+										}`}
 								>
 									<div className="flex items-center gap-3">
 										<div className="relative">
@@ -245,13 +267,13 @@ export function ChatPage() {
 											)}
 										</div>
 
-									<div className="flex-1 min-w-0">
-										<div className="flex items-center justify-between mb-1">
-											<span className="text-white truncate">
-												{chat.username}
-											</span>
-											<span className="text-xs text-gray-400">
-												{chat?.createdAt &&
+										<div className="flex-1 min-w-0">
+											<div className="flex items-center justify-between mb-1">
+												<span className="text-white truncate">
+													{chat.username}
+												</span>
+												<span className="text-xs text-gray-400">
+													{chat?.createdAt &&
 														new Date(
 															chat?.createdAt
 														).toLocaleTimeString(
@@ -261,20 +283,20 @@ export function ChatPage() {
 																minute: "2-digit",
 															}
 														)}
-											</span>
-										</div>
-										<div className="flex items-center justify-between">
+												</span>
+											</div>
+											<div className="flex items-center justify-between">
+											</div>
 										</div>
 									</div>
-								</div>
-							</motion.button>
-						))}
+								</motion.button>
+							))}
 					</div>
 				</ScrollArea>
 			</div>
 
 			{/* CHAT WINDOW — SAME */}
-			<div className="flex-1 flex flex-col">
+			<div className="flex-1 flex flex-col min-h-0">
 				<div className="p-4 border-b border-white/10 glass flex items-center justify-between">
 					<div className="flex items-center gap-3">
 						<div className="relative">
@@ -329,42 +351,50 @@ export function ChatPage() {
 				</div>
 
 				{/* CHAT MESSAGES — SAME */}
-				<ScrollArea className="flex-1 p-6">
-					<div className="space-y-4 max-w-3xl mx-auto">
+				<ScrollArea className="flex-1 min-h-0">
+					<div className="space-y-4 max-w-3xl mx-auto p-6">
+						<div className="h-full overflow-y-auto">
 						{messages?.map((msg, index) => (
 							<motion.div
 								key={msg?._id ?? index}
 								initial={{ opacity: 0, y: 10 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ delay: index * 0.05 }}
-								className={`flex ${
-									msg.senderId === user?._id
+								className={`flex ${msg.senderId === user?._id
 										? "justify-end"
 										: "justify-start"
-								}`}
+									}`}
 							>
 								<div
-									className={`max-w-md ${
-										msg.senderId === user?._id
+									className={`max-w-md ${msg.senderId === user?._id
 											? "order-2"
 											: ""
-									}`}
+										}`}
 								>
 									<div
-										className={`rounded-2xl px-4 py-3 ${
-											msg.senderId === user?._id
+										className={`rounded-2xl px-4 py-3 ${msg.senderId === user?._id
 												? "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] text-white rounded-br-sm"
 												: "glass border border-white/10 text-white rounded-bl-sm"
-										}`}
+											}`}
 									>
 										<p>{msg?.content}</p>
 									</div>
-									<p className="text-xs text-gray-500 mt-1 px-2">
+									{/* <p className="text-xs text-gray-500 mt-1 px-2">
 										{msg.createdAt}
-									</p>
+									</p> */}
+									<p className="text-xs text-gray-500 mt-1 px-2">
+  {msg.createdAt &&
+    new Date(msg.createdAt).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}
+</p>
+
 								</div>
 							</motion.div>
 						))}
+						<div ref={bottomRef} />
+					</div>
 					</div>
 				</ScrollArea>
 

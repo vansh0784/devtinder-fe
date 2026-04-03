@@ -23,36 +23,36 @@ export function LandingPage() {
 	};
 
 	return (
-		<div className="min-h-screen bg-linear-to-br from-[#121212] via-[#1C1C1E] to-[#121212] text-white overflow-hidden">
-			<nav className="fixed top-0 left-0 right-0 z-50 glass">
-				<div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+		<div className="min-h-screen overflow-hidden bg-linear-to-br from-[#121212] via-[#1C1C1E] to-[#121212] text-white">
+			<nav className="glass fixed top-0 right-0 left-0 z-50">
+				<div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
 					<div
-						className="flex items-center gap-2 cursor-pointer"
+						className="flex cursor-pointer items-center gap-2"
 						onClick={() =>
 							window.scrollTo({ top: 0, behavior: "smooth" })
 						}
 					>
-						<Code2 className="w-8 h-8 text-[#007BFF]" />
-						<span className="text-xl gradient-text">DevTinder</span>
+						<Code2 className="h-8 w-8 text-[#007BFF]" />
+						<span className="gradient-text text-xl">DevTinder</span>
 					</div>
 					<div className="flex items-center gap-4">
 						<Button
 							variant="ghost"
 							className="text-white  hover:text-[#007BFF]"
-							onClick={() => scrollToSection("/features")}
+							onClick={() => scrollToSection("features")}
 						>
 							Features
 						</Button>
 						<Button
 							variant="ghost"
 							className="text-white hover:text-[#007BFF]"
-							onClick={() => scrollToSection("/about")}
+							onClick={() => scrollToSection("about")}
 						>
 							About
 						</Button>
 						<Button
 							variant="outline"
-							className=" bg-[#19191a] text-[#007BFF] border-[#007BFF] hover:text-white"
+							className="border border-[#007BFF] bg-[#19191a] text-[#007BFF] hover:text-white"
 							onClick={() => onNavigate("/auth")}
 						>
 							Sign In
@@ -60,27 +60,27 @@ export function LandingPage() {
 					</div>
 				</div>
 			</nav>
-			<section className="relative pt-32 pb-20 px-6">
-				<div className="max-w-7xl mx-auto">
-					<div className="grid lg:grid-cols-2 gap-12 items-center">
+			<section className="relative px-6 pt-32 pb-20">
+				<div className="mx-auto max-w-7xl">
+					<div className="grid items-center gap-12 lg:grid-cols-2">
 						<motion.div
 							initial={{ opacity: 0, x: -50 }}
 							animate={{ opacity: 1, x: 0 }}
 							transition={{ duration: 0.6 }}
 						>
-							<div className="inline-block mb-4 px-4 py-2 rounded-full glass-light">
+							<div className="glass-light mb-4 inline-block rounded-full px-4 py-2">
 								<span className="text-sm text-[#007BFF]">
 									🚀 Connect with 10,000+ developers
 								</span>
 							</div>
-							<h1 className="text-5xl lg:text-7xl mb-6">
+							<h1 className="mb-6 text-5xl lg:text-7xl">
 								<span className="gradient-text">Connect.</span>{" "}
 								<span className="gradient-text">
 									Collaborate.
 								</span>{" "}
 								<span className="gradient-text">Code.</span>
 							</h1>
-							<p className="text-xl text-gray-400 mb-8 max-w-xl">
+							<p className="mb-8 max-w-xl text-xl text-gray-400">
 								The ultimate social platform for developers to
 								find collaborators, share projects, and build
 								the future together.
@@ -88,7 +88,7 @@ export function LandingPage() {
 							<div className="flex flex-wrap gap-4">
 								<Button
 									size="lg"
-									className="bg-linear-to-r from-[#007BFF] to-[#8A2BE2] hover:opacity-90 text-white px-8"
+									className="bg-linear-to-r from-[#007BFF] to-[#8A2BE2] px-8 text-white hover:opacity-90"
 									onClick={() => onNavigate("auth")}
 								>
 									Join Now
@@ -96,16 +96,16 @@ export function LandingPage() {
 								<Button
 									size="lg"
 									variant="outline"
-									className="border-white/20 bg-[#19191a] text-white hover:bg-white/10"
+									className="border border-white/20 bg-[#19191a] text-white hover:bg-white/10"
 									onClick={() => onNavigate("home")}
 								>
 									Explore
 								</Button>
 							</div>
 
-							<div className="flex items-center gap-8 mt-12">
+							<div className="mt-12 flex items-center gap-8">
 								<div>
-									<div className="text-3xl gradient-text">
+									<div className="gradient-text text-3xl">
 										10K+
 									</div>
 									<div className="text-sm text-gray-400">
@@ -114,7 +114,7 @@ export function LandingPage() {
 								</div>
 								<div className="h-12 w-px bg-white/20" />
 								<div>
-									<div className="text-3xl gradient-text">
+									<div className="gradient-text text-3xl">
 										5K+
 									</div>
 									<div className="text-sm text-gray-400">
@@ -123,7 +123,7 @@ export function LandingPage() {
 								</div>
 								<div className="h-12 w-px bg-white/20" />
 								<div>
-									<div className="text-3xl gradient-text">
+									<div className="gradient-text text-3xl">
 										50+
 									</div>
 									<div className="text-sm text-gray-400">
@@ -139,20 +139,20 @@ export function LandingPage() {
 							transition={{ duration: 0.6, delay: 0.2 }}
 							className="relative"
 						>
-							<div className="absolute inset-0 bg-linear-to-r from-[#007BFF] to-[#8A2BE2] opacity-20 blur-3xl rounded-full" />
-							<div className="relative glass rounded-3xl p-8">
-								<div className="aspect-square rounded-2xl overflow-hidden">
+							<div className="absolute inset-0 rounded-full bg-linear-to-r from-[#007BFF] to-[#8A2BE2] opacity-20 blur-3xl" />
+							<div className="glass relative rounded-3xl p-8">
+								<div className="aspect-square overflow-hidden rounded-2xl">
 									<ImageWithFallback
 										src="https://images.unsplash.com/photo-1566915896913-549d796d2166?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZXZlbG9wZXIlMjBjb2RpbmclMjB3b3Jrc3BhY2V8ZW58MXx8fHwxNzYyMTcyOTU5fDA&ixlib=rb-4.1.0&q=80&w=1080"
 										alt="Developer workspace"
-										className="w-full h-full object-cover"
+										className="h-full w-full object-cover"
 									/>
 								</div>
-								<div className="absolute -top-4 -right-4 glass rounded-2xl p-4 shadow-xl">
-									<Code2 className="w-8 h-8 text-[#007BFF]" />
+								<div className="glass absolute -top-4 -right-4 rounded-2xl p-4 shadow-xl">
+									<Code2 className="h-8 w-8 text-[#007BFF]" />
 								</div>
-								<div className="absolute -bottom-4 -left-4 glass rounded-2xl p-4 shadow-xl">
-									<Rocket className="w-8 h-8 text-[#8A2BE2]" />
+								<div className="glass absolute -bottom-4 -left-4 rounded-2xl p-4 shadow-xl">
+									<Rocket className="h-8 w-8 text-[#8A2BE2]" />
 								</div>
 							</div>
 						</motion.div>
@@ -161,28 +161,28 @@ export function LandingPage() {
 				<div className="absolute top-40 left-10 opacity-30">
 					<div className="text-[#007BFF]">&lt;/&gt;</div>
 				</div>
-				<div className="absolute bottom-40 right-20 opacity-30">
+				<div className="absolute right-20 bottom-40 opacity-30">
 					<div className="text-[#8A2BE2]">{"{ }"}</div>
 				</div>
 			</section>
-			<section id="features" className="py-20 px-6 scroll-mt-20">
-				<div className="max-w-7xl mx-auto">
+			<section id="features" className="scroll-mt-20 px-6 py-20">
+				<div className="mx-auto max-w-7xl">
 					<motion.div
 						initial={{ opacity: 0, y: 20 }}
 						whileInView={{ opacity: 1, y: 0 }}
 						transition={{ duration: 0.6 }}
 						viewport={{ once: true }}
-						className="text-center mb-16"
+						className="mb-16 text-center"
 					>
-						<h2 className="text-4xl mb-4">
+						<h2 className="mb-4 text-4xl">
 							Why Developers Love DevTinder
 						</h2>
-						<p className="text-gray-400 text-xl">
+						<p className="text-xl text-gray-400">
 							Everything you need to connect and collaborate
 						</p>
 					</motion.div>
 
-					<div className="grid md:grid-cols-3 gap-8">
+					<div className="grid gap-8 md:grid-cols-3">
 						{[
 							{
 								icon: Users,
@@ -215,20 +215,20 @@ export function LandingPage() {
 									delay: index * 0.1,
 								}}
 								viewport={{ once: true }}
-								className="glass rounded-2xl p-8 hover:scale-105 transition-transform cursor-pointer group"
+								className="glass group cursor-pointer rounded-2xl p-8 transition-transform hover:scale-105"
 							>
 								<div
-									className="w-12 h-12 rounded-xl mb-6 flex items-center justify-center"
+									className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl"
 									style={{
 										backgroundColor: `${feature.color}20`,
 									}}
 								>
 									<feature.icon
-										className="w-6 h-6"
+										className="h-6 w-6"
 										style={{ color: feature.color }}
 									/>
 								</div>
-								<h3 className="text-xl mb-3">
+								<h3 className="mb-3 text-xl">
 									{feature.title}
 								</h3>
 								<p className="text-gray-400">
@@ -241,25 +241,25 @@ export function LandingPage() {
 			</section>
 			<section
 				id="about"
-				className="py-20 px-6 scroll-mt-20 bg-linear-to-b from-transparent to-[#0A0A0A]/50"
+				className="scroll-mt-20 bg-linear-to-b from-transparent to-[#0A0A0A]/50 px-6 py-20"
 			>
-				<div className="max-w-7xl mx-auto">
+				<div className="mx-auto max-w-7xl">
 					<motion.div
 						initial={{ opacity: 0, y: 20 }}
 						whileInView={{ opacity: 1, y: 0 }}
 						transition={{ duration: 0.6 }}
 						viewport={{ once: true }}
-						className="text-center mb-16"
+						className="mb-16 text-center"
 					>
-						<h2 className="text-4xl mb-4">About DevTinder</h2>
-						<p className="text-gray-400 text-xl max-w-3xl mx-auto">
+						<h2 className="mb-4 text-4xl">About DevTinder</h2>
+						<p className="mx-auto max-w-3xl text-xl text-gray-400">
 							We're on a mission to revolutionize how developers
 							connect, collaborate, and create amazing projects
 							together
 						</p>
 					</motion.div>
 
-					<div className="grid md:grid-cols-3 gap-8 mb-16">
+					<div className="mb-16 grid gap-8 md:grid-cols-3">
 						{[
 							{
 								icon: Target,
@@ -295,17 +295,17 @@ export function LandingPage() {
 								className="glass rounded-2xl p-8 text-center"
 							>
 								<div
-									className="w-16 h-16 rounded-2xl mb-6 mx-auto flex items-center justify-center"
+									className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl"
 									style={{
 										backgroundColor: `${item.color}20`,
 									}}
 								>
 									<item.icon
-										className="w-8 h-8"
+										className="h-8 w-8"
 										style={{ color: item.color }}
 									/>
 								</div>
-								<h3 className="text-xl mb-3">{item.title}</h3>
+								<h3 className="mb-3 text-xl">{item.title}</h3>
 								<p className="text-gray-400">
 									{item.description}
 								</p>
@@ -320,10 +320,10 @@ export function LandingPage() {
 						viewport={{ once: true }}
 						className="glass rounded-3xl p-12 text-center"
 					>
-						<h3 className="text-3xl mb-6">
+						<h3 className="mb-6 text-3xl">
 							Built by Developers, for Developers
 						</h3>
-						<p className="text-gray-400 text-lg max-w-3xl mx-auto mb-8">
+						<p className="mx-auto mb-8 max-w-3xl text-lg text-gray-400">
 							DevTinder was created by a team of passionate
 							developers who understand the challenges of finding
 							the right collaborators. We combined the best
@@ -334,34 +334,34 @@ export function LandingPage() {
 						</p>
 						<div className="flex flex-wrap justify-center gap-6">
 							<div className="text-center">
-								<div className="text-2xl gradient-text mb-1">
+								<div className="gradient-text mb-1 text-2xl">
 									2025
 								</div>
 								<div className="text-sm text-gray-400">
 									Founded
 								</div>
 							</div>
-							<div className="h-12 w-px bg-white/20 hidden sm:block" />
+							<div className="hidden h-12 w-px bg-white/20 sm:block" />
 							<div className="text-center">
-								<div className="text-2xl gradient-text mb-1">
+								<div className="gradient-text mb-1 text-2xl">
 									50+
 								</div>
 								<div className="text-sm text-gray-400">
 									Countries
 								</div>
 							</div>
-							<div className="h-12 w-px bg-white/20 hidden sm:block" />
+							<div className="hidden h-12 w-px bg-white/20 sm:block" />
 							<div className="text-center">
-								<div className="text-2xl gradient-text mb-1">
+								<div className="gradient-text mb-1 text-2xl">
 									10K+
 								</div>
 								<div className="text-sm text-gray-400">
 									Active Users
 								</div>
 							</div>
-							<div className="h-12 w-px bg-white/20 hidden sm:block" />
+							<div className="hidden h-12 w-px bg-white/20 sm:block" />
 							<div className="text-center">
-								<div className="text-2xl gradient-text mb-1">
+								<div className="gradient-text mb-1 text-2xl">
 									5K+
 								</div>
 								<div className="text-sm text-gray-400">
@@ -372,26 +372,26 @@ export function LandingPage() {
 					</motion.div>
 				</div>
 			</section>
-			<section className="py-20 px-6">
+			<section className="px-6 py-20">
 				<motion.div
 					initial={{ opacity: 0, y: 20 }}
 					whileInView={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.6 }}
 					viewport={{ once: true }}
-					className="max-w-4xl mx-auto glass rounded-3xl p-12 text-center relative overflow-hidden"
+					className="glass relative mx-auto max-w-4xl overflow-hidden rounded-3xl p-12 text-center"
 				>
 					<div className="absolute inset-0 bg-linear-to-r from-[#007BFF]/20 to-[#8A2BE2]/20" />
 					<div className="relative z-10">
-						<h2 className="text-4xl mb-4">
+						<h2 className="mb-4 text-4xl">
 							Ready to start building together?
 						</h2>
-						<p className="text-gray-400 text-xl mb-8">
+						<p className="mb-8 text-xl text-gray-400">
 							Join thousands of developers already collaborating
 							on DevTinder
 						</p>
 						<Button
 							size="lg"
-							className="bg-linear-to-r from-[#007BFF] to-[#8A2BE2] hover:opacity-90 text-white px-12"
+							className="bg-linear-to-r from-[#007BFF] to-[#8A2BE2] px-12 text-white hover:opacity-90"
 							onClick={() => onNavigate("auth")}
 						>
 							Get Started - It's Free
@@ -399,10 +399,10 @@ export function LandingPage() {
 					</div>
 				</motion.div>
 			</section>
-			<footer className="py-12 px-6 border-t border-white/10">
-				<div className="max-w-7xl mx-auto text-center text-gray-400">
-					<div className="flex items-center justify-center gap-2 mb-4">
-						<Code2 className="w-6 h-6 text-[#007BFF]" />
+			<footer className="border-t border-white/10 px-6 py-12">
+				<div className="mx-auto max-w-7xl text-center text-gray-400">
+					<div className="mb-4 flex items-center justify-center gap-2">
+						<Code2 className="h-6 w-6 text-[#007BFF]" />
 						<span className="gradient-text">DevTinder</span>
 					</div>
 					<p>
