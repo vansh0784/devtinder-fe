@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import { type IUser } from "../components/ProfilePage";
+import type { IUser } from "../utils/types";
 
 // Define the AuthContext type
 export interface IAuthContext {

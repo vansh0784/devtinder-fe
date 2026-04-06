@@ -10,14 +10,7 @@ import { User, Bell, Shield, Moon, Sun, Github, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "../hooks/useAuth";
 
-// interface IUpdateUser {
-//   firstname?: string;
-//   lastname?: string;
-//   username?: string;
-//   email?: string;
-//   bio?: string;
-//   image?: File;
-// }
+
 
 export function SettingsPage() {
 	const { user } = useAuth();
