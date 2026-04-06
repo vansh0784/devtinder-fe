@@ -4,11 +4,10 @@ import { type IUser } from "../components/ProfilePage";
 import { getApi } from "../utils/api";
 import { socket } from "../utils/socket";
 
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-	const [user, setUser] = useState<IUser | null>(null);
+  const [user, setUser] = useState<IUser | null>(null);
 
-	useEffect(() => {
+  useEffect(() => {
     if (user?._id) {
       socket.auth = { userId: user._id };
       socket.connect();
@@ -21,9 +20,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [user]);
 
-	return (
-		<AuthContext.Provider value={{ user, setUser }}>
-			{children}
-		</AuthContext.Provider>
-	);
+  return (
+    <AuthContext.Provider value={{ user, setUser }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
