@@ -1,7 +1,6 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { AuthContext } from "./AuthContext";
-import { type IUser } from "../components/ProfilePage";
-import { getApi } from "../utils/api";
+import { type IUser } from "../utils/types";
 import { socket } from "../utils/socket";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -11,8 +10,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (user?._id) {
       socket.auth = { userId: user._id };
       socket.connect();
-
-      console.log("🔌 Socket connected with user:", user._id);
     }
 
     return () => {

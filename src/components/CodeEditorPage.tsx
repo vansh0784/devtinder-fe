@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { type ChangeEvent, useState, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
@@ -483,7 +483,7 @@ export function CodeEditorPage() {
     }
   };
 
-  const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleCodeChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setCode(e.target.value);
     setCursorPosition(e.target.selectionStart);
   };

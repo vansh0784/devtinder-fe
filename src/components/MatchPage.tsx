@@ -112,7 +112,6 @@ export function MatchPage() {
         handlePass();
       }
     }
-    console.log(event);
   };
 
   const handleLike = () => {

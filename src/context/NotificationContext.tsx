@@ -118,7 +118,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   // 🔹 Realtime socket notifications
   useEffect(() => {
     socket.on("connect", async () => {
-      console.log("🔄 Socket connected — refreshing notifications");
       if (user?._id) {
         const data = await getApi<Notification[]>("/notifications/unread");
         setNotifications(data);
@@ -126,7 +125,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     });
 
     socket.on("notification", (data: Notification) => {
-      console.log("🔔 Notification received:", data);
       setNotifications((prev) => [data, ...prev]);
     });
 

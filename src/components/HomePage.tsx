@@ -120,7 +120,6 @@ export function HomePage() {
   >(null);
   const [customMessage, setCustomMessage] = useState("");
   const [feedPosts, setFeedPosts] = useState<IPost[]>([]);
-  console.log(feedPosts);
 
   const toggleLike = (postId: number) => {
     if (likedPosts.includes(postId)) {

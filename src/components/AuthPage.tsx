@@ -86,8 +86,6 @@ export function AuthPage() {
           username: user.name,
           avatar: user.picture,
         });
-
-        console.log("BACKEND AUTH0 RESPONSE:", res);
       } catch (err) {
         console.error("Auth0 backend login failed", err);
       }
