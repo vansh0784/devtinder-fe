@@ -14,6 +14,7 @@ import {
 import { motion } from "framer-motion";
 import { useAuth } from "../hooks/useAuth";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
+import { displayField, displayInitials } from "../utils/display";
 
 // const user? = {
 // 	name: "Alex Johnson",
@@ -77,6 +78,26 @@ const PROJECTS = [
 
 export function ProfilePage() {
   const { user } = useAuth();
+  const avatarSrc = displayField(user?.avatar) || undefined;
+  const usernameRaw = displayField(user?.username);
+  const displayName = usernameRaw || "Member";
+  const handle = usernameRaw
+    ? usernameRaw.startsWith("@")
+      ? usernameRaw
+      : `@${usernameRaw}`
+    : "";
+  const bio = displayField(user?.bio);
+  const location = displayField(user?.location);
+  const portfolio = displayField(user?.portfolio);
+  const portfolioHref = portfolio
+    ? /^https?:\/\//i.test(portfolio)
+      ? portfolio
+      : `https://${portfolio}`
+    : "";
+  const github = displayField(user?.github);
+  const joined = displayField(user?.createdAt?.split("T")[0]);
+  const followers = displayField(user?.followers, "0");
+  const following = displayField(user?.following, "0");
 
   return (
     <div className="min-h-screen p-6 max-w-6xl mx-auto">
@@ -102,15 +123,19 @@ export function ProfilePage() {
       >
         <div className="flex flex-col md:flex-row gap-6 items-start">
           <Avatar className="w-32 h-32 border-4 border-[#007BFF] shadow-xl">
-            <AvatarImage src={user?.avatar} alt={user?.username} />
-            <AvatarFallback>{user?.username[0]}</AvatarFallback>
+            {avatarSrc ? (
+              <AvatarImage src={avatarSrc} alt={displayName} />
+            ) : null}
+            <AvatarFallback>{displayInitials(user?.username)}</AvatarFallback>
           </Avatar>
 
           <div className="flex-1">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h1 className="text-3xl text-white mb-1">{user?.username}</h1>
-                <p className="text-gray-400">{user?.username}</p>
+                <h1 className="text-3xl text-white mb-1">{displayName}</h1>
+                {handle ? (
+                  <p className="text-gray-400">{handle}</p>
+                ) : null}
               </div>
               <div className="flex gap-3">
                 <Button
@@ -125,44 +150,58 @@ export function ProfilePage() {
               </div>
             </div>
 
-            <p className="text-gray-300 mb-6 max-w-2xl">{user?.bio}</p>
+            <p className="text-gray-300 mb-6 max-w-2xl">
+              {bio || "Add a short bio to introduce yourself."}
+            </p>
 
             <div className="flex flex-wrap gap-4 text-sm text-gray-400 mb-6">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                {user?.location}
-              </div>
-              <div className="flex items-center gap-2">
-                <LinkIcon className="w-4 h-4" />
-                <a
-                  href={`${user?.portfolio}`}
-                  className="text-[#007BFF] hover:underline"
-                >
-                  {user?.portfolio}
-                </a>
-              </div>
-              <div className="flex items-center gap-2">
-                <GitHubLogoIcon className="w-4 h-4" />
-                <a
-                  href={`https://github.com/${user?.github}`}
-                  className="text-[#007BFF] hover:underline"
-                >
-                  {user?.github}
-                </a>
-              </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Joined {user?.createdAt?.split("T")[0]}
-              </div>
+              {location ? (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  {location}
+                </div>
+              ) : null}
+              {portfolioHref ? (
+                <div className="flex items-center gap-2">
+                  <LinkIcon className="w-4 h-4" />
+                  <a
+                    href={portfolioHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#007BFF] hover:underline"
+                  >
+                    {portfolio}
+                  </a>
+                </div>
+              ) : null}
+              {github ? (
+                <div className="flex items-center gap-2">
+                  <GitHubLogoIcon className="w-4 h-4" />
+                  <a
+                    href={`https://github.com/${github}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#007BFF] hover:underline"
+                  >
+                    {github}
+                  </a>
+                </div>
+              ) : null}
+              {joined ? (
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Joined {joined}
+                </div>
+              ) : null}
             </div>
 
             <div className="flex gap-6">
               <div>
-                <span className="text-white">{user?.followers ?? "100"}</span>{" "}
+                <span className="text-white">{followers}</span>{" "}
                 <span className="text-gray-400">Followers</span>
               </div>
               <div>
-                <span className="text-white">{user?.following ?? "85"}</span>{" "}
+                <span className="text-white">{following}</span>{" "}
                 <span className="text-gray-400">Following</span>
               </div>
             </div>
@@ -250,14 +289,18 @@ export function ProfilePage() {
               <h3 className="text-xl text-white mb-4">Technical Skills</h3>
               <div className="flex flex-wrap gap-3">
                 {user?.skills &&
-                  user?.skills?.map((skill) => (
+                  user?.skills?.map((skill) => {
+                    const label = displayField(skill);
+                    if (!label) return null;
+                    return (
                     <Badge
                       key={skill}
                       className="bg-linear-to-r from-[#007BFF]/20 to-[#8A2BE2]/20 border border-[#007BFF]/30 px-4 py-2"
                     >
-                      {skill}
+                      {label}
                     </Badge>
-                  ))}
+                    );
+                  })}
               </div>
             </Card>
 

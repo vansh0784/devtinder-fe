@@ -14,7 +14,7 @@ import { useNotifications } from "../context/NotificationContext";
 export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { notifications } = useNotifications();
+  const { sidebarAlertCount } = useNotifications();
   const currentPath = location.pathname.replace("/", "") || "home";
 
   const navItems = [
@@ -77,9 +77,9 @@ export function AppLayout() {
             }`}
           >
             <Bell className="w-6 h-6" />
-            {notifications.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs">
-                {notifications.length}
+            {sidebarAlertCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[1.25rem] h-5 px-1 bg-red-500 rounded-full flex items-center justify-center text-xs">
+                {sidebarAlertCount > 99 ? "99+" : sidebarAlertCount}
               </span>
             )}
           </button>

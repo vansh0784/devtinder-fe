@@ -16,24 +16,33 @@ import { AuthPage } from "./components/AuthPage";
 import { OnboardingPage } from "./components/OnboardingPage";
 import { NotFoundPage } from "./components/NotFoundPage";
 import { Toaster } from "./components/ui/sonner";
-import { AuthProvider } from "./context/AuthProvider";
 import { UserProfilePage } from "./components/UserProfilePage";
-import { socket } from './utils/socket';
+import { socket } from "./utils/socket";
 
 export default function App() {
   const { user } = useAuth();
 
   useEffect(() => {
-  if (user?._id) {
-    socket.auth = { userId: user._id };
-    
-    socket.connect();
-  }
+    if (!user?._id) return;
 
-  return () => {
-    socket.disconnect();
-  };
-}, [user?._id]);
+    socket.auth = { userId: user._id };
+
+    const onConnect = () => {
+      socket.emit("register_user", user._id);
+    };
+
+    socket.on("connect", onConnect);
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      onConnect();
+    }
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.disconnect();
+    };
+  }, [user?._id]);
 
   return (
     <Router>

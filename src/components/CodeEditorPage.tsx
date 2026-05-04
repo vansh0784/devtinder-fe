@@ -1,14 +1,20 @@
 import { type ChangeEvent, useState, useEffect, useRef } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { Card } from "./ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
+import { Skeleton } from "./ui/skeleton";
 import Editor from "@monaco-editor/react";
+import * as monaco from "monaco-editor";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { MonacoBinding } from "y-monaco";
-import { io } from "socket.io-client";
+import { io, type Socket } from "socket.io-client";
+import { useAuth } from "../hooks/useAuth";
+import { getApi, postApi } from "../utils/api";
+import { monacoChangesToOtJson } from "../utils/monacoOt";
 import {
   Play,
   Download,
@@ -42,7 +48,20 @@ import {
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { toast } from "sonner";
-import { type Collaborator, type Friend } from "../utils/types";
+import {
+  type Collaborator,
+  type ICollabRoomResponse,
+  type IUser,
+  type IBaseResponse,
+} from "../utils/types";
+import { displayField, displayInitials } from "../utils/display";
+
+function hashColor(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
+  const hue = Math.abs(h) % 360;
+  return `hsl(${hue} 70% 55%)`;
+}
 
 const STARTER_CODE = {
   javascript: `// JavaScript Playground
@@ -125,76 +144,11 @@ h1 {
 }`,
 };
 
-const MOCK_COLLABORATORS: Collaborator[] = [
-  {
-    id: "user-2",
-    name: "Sarah Chen",
-    avatar:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100",
-    color: "#007BFF",
-    isTyping: false,
-    cursorPosition: 0,
-  },
-  {
-    id: "user-3",
-    name: "Alex Kumar",
-    avatar:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100",
-    color: "#8A2BE2",
-    isTyping: false,
-    cursorPosition: 0,
-  },
-];
-
-const MOCK_FRIENDS: Friend[] = [
-  {
-    id: "friend-1",
-    name: "Emma Wilson",
-    username: "@emmacodes",
-    avatar:
-      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100",
-    status: "online",
-    matchScore: 95,
-  },
-  {
-    id: "friend-2",
-    name: "Marcus Johnson",
-    username: "@marcusdev",
-    avatar:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100",
-    status: "online",
-    matchScore: 88,
-  },
-  {
-    id: "friend-3",
-    name: "Lisa Park",
-    username: "@lisabuilds",
-    avatar:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100",
-    status: "offline",
-    matchScore: 92,
-  },
-  {
-    id: "friend-4",
-    name: "David Martinez",
-    username: "@davecodes",
-    avatar:
-      "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100",
-    status: "online",
-    matchScore: 85,
-  },
-  {
-    id: "friend-5",
-    name: "Sophia Lee",
-    username: "@sophiatech",
-    avatar:
-      "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=100",
-    status: "offline",
-    matchScore: 90,
-  },
-];
-
 export function CodeEditorPage() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const lastCollabKickNavigationKeyRef = useRef<string | null>(null);
   const [language, setLanguage] =
     useState<keyof typeof STARTER_CODE>("javascript");
   const [code, setCode] = useState(STARTER_CODE.javascript);
@@ -205,182 +159,282 @@ export function CodeEditorPage() {
   const [activeCollaborators, setActiveCollaborators] = useState<
     Collaborator[]
   >([]);
-  const [_, setCursorPosition] = useState(0);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [invitedFriends, setInvitedFriends] = useState<Set<string>>(new Set());
+  const [matchedConnections, setMatchedConnections] = useState<IUser[]>([]);
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const monacoEditorRef = useRef<any>(null);
-  const monacoInstanceRef = useRef<any>(null);
+  const [collabRoomId, setCollabRoomId] = useState<string | null>(null);
+  const [yjsStatus, setYjsStatus] = useState<
+    "offline" | "connecting" | "synced"
+  >("offline");
+  const [editorSurfaceReady, setEditorSurfaceReady] = useState(false);
+  const monacoEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(
+    null,
+  );
+  const monacoInstanceRef = useRef<typeof monaco | null>(null);
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
   const bindingRef = useRef<MonacoBinding | null>(null);
-  const [canEdit, setCanEdit] = useState(false);
+  const [canEdit, setCanEdit] = useState(true);
+  const socketRef = useRef<Socket | null>(null);
+  const otRevisionRef = useRef(0);
+  const docLenBeforeOtRef = useRef(0);
+  const otEmitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionCollabRef = useRef<ICollabRoomResponse | null>(null);
+  const monacoOtDisposableRef = useRef<{ dispose: () => void } | null>(null);
 
-  const socketRef = useRef<any>(null);
-
-  const sessionLink = "https://devtinder.dev/code/session/abc123xyz";
-  const permissionSocketUrl =
-    import.meta.env.NEXT_PUBLIC_PERMISSION_SOCKET_URL ||
-    "http://localhost:4000"; // change in prod
-  const ywsUrl = import.meta.env.NEXT_PUBLIC_YWS_URL || "ws://localhost:1234"; // change in prod
+  const apiBase =
+    import.meta.env.VITE_API_BASE_URL ?? "https://devtinder-be-1.onrender.com";
+  const sessionLink =
+    typeof window !== "undefined" && collabRoomId
+      ? `${window.location.origin}/code-editor?room=${collabRoomId}`
+      : "";
 
   useEffect(() => {
-    if (collaborationEnabled) {
-      // Simulate Sarah joining after 1 second
-      const timer1 = setTimeout(() => {
-        setActiveCollaborators((prev) => [...prev, MOCK_COLLABORATORS[0]]);
-      }, 1000);
-
-      // Simulate Alex joining after 3 seconds
-      const timer2 = setTimeout(() => {
-        setActiveCollaborators((prev) => [...prev, MOCK_COLLABORATORS[1]]);
-      }, 3000);
-
-      return () => {
-        clearTimeout(timer1);
-        clearTimeout(timer2);
-      };
-    } else {
-      setActiveCollaborators([]);
+    if (!inviteDialogOpen || !user?._id) {
+      return;
     }
-  }, [collaborationEnabled]);
+    let cancelled = false;
+    setConnectionsLoading(true);
+    void getApi<IUser[]>("/connection/matches")
+      .then((list) => {
+        if (!cancelled) setMatchedConnections(list ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setMatchedConnections([]);
+      })
+      .finally(() => {
+        if (!cancelled) setConnectionsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteDialogOpen, user?._id]);
 
-  // Simulate typing from collaborators
+  /** Join link / invite notification should flip Live Collaboration on (each navigation keyed once). */
   useEffect(() => {
-    if (!collaborationEnabled || activeCollaborators.length === 0) return;
-
-    const interval = setInterval(() => {
-      setActiveCollaborators((prev) =>
-        prev.map((collab) => ({
-          ...collab,
-          isTyping: Math.random() > 0.7,
-          cursorPosition: Math.floor(Math.random() * code.length),
-        })),
-      );
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [collaborationEnabled, activeCollaborators.length, code.length]);
-
-  // Simulate collaborative edits
-  useEffect(() => {
-    if (!collaborationEnabled || activeCollaborators.length === 0) return;
-
-    const simulateEdit = setInterval(() => {
-      // Randomly simulate an edit from a collaborator
-      if (Math.random() > 0.85) {
-        const collaborator =
-          activeCollaborators[
-            Math.floor(Math.random() * activeCollaborators.length)
-          ];
-        const comments = [
-          `\n// ${collaborator.name}: Great work!`,
-          `\n// ${collaborator.name}: Consider optimizing this`,
-          `\n// ${collaborator.name}: Nice implementation!`,
-        ];
-        const comment = comments[Math.floor(Math.random() * comments.length)];
-
-        setCode((prev) => {
-          const lines = prev.split("\n");
-          const randomLine = Math.floor(Math.random() * lines.length);
-          lines.splice(randomLine, 0, comment);
-          return lines.join("\n");
-        });
-      }
-    }, 8000);
-
-    return () => clearInterval(simulateEdit);
-  }, [collaborationEnabled, activeCollaborators]);
+    const roomQs = searchParams.get("room");
+    const inviteOpen =
+      (location.state as { openCollaboration?: boolean } | null)
+        ?.openCollaboration === true;
+    if (!roomQs?.length && !inviteOpen) return;
+    const k = location.key;
+    if (lastCollabKickNavigationKeyRef.current === k) return;
+    lastCollabKickNavigationKeyRef.current = k;
+    setCollaborationEnabled(true);
+  }, [location.key, location.state, searchParams]);
 
   useEffect(() => {
-    // when collaboration toggled on -> connect to permission socket and Yjs provider
     if (!collaborationEnabled) {
-      // disconnect if present
-      socketRef.current?.disconnect?.();
-      providerRef.current?.disconnect?.();
-      ydocRef.current?.destroy?.();
-      ydocRef.current = null;
+      socketRef.current?.removeAllListeners();
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+      providerRef.current?.disconnect();
       providerRef.current = null;
+      ydocRef.current?.destroy();
+      ydocRef.current = null;
+      bindingRef.current?.destroy();
       bindingRef.current = null;
-      monacoEditorRef.current &&
-        monacoEditorRef.current.updateOptions({ readOnly: false }); // solo mode editable
-      setCanEdit(false);
+      monacoEditorRef.current?.updateOptions?.({ readOnly: false });
+      setCanEdit(true);
+      setActiveCollaborators([]);
+      setCollabRoomId(null);
+      setYjsStatus("offline");
+      setEditorSurfaceReady(false);
+      sessionCollabRef.current = null;
+      otRevisionRef.current = 0;
+      if (otEmitTimerRef.current) {
+        clearTimeout(otEmitTimerRef.current);
+        otEmitTimerRef.current = null;
+      }
+      monacoOtDisposableRef.current?.dispose();
+      monacoOtDisposableRef.current = null;
       return;
     }
 
-    // connect to permission socket (Socket.IO)
-    // NOTE: pass token in query if you use JWT auth: { query: { token: yourToken } }
-    socketRef.current = io(permissionSocketUrl, { autoConnect: true });
+    let cancelled = false;
 
-    socketRef.current.on("connect", () => {
-      // join room (use your real roomId in production)
-      socketRef.current.emit("join-room", { roomId: "session-abc123xyz" });
-    });
-    socketRef.current.on(
-      "permission-update",
-      ({ editors }: { editors: string[] }) => {
-        // if your user id is included, allow edits. Here we use a simple client id fallback
-        const myId = getLocalUserId();
-        const allowed = editors.includes(myId);
-        setCanEdit(allowed);
-        // update monaco readOnly if mounted
-        if (monacoEditorRef.current)
-          monacoEditorRef.current.updateOptions({ readOnly: !allowed });
-      },
-    );
-    socketRef.current.on("presence", ({ users }: any) => {
-      // you can merge presence with your activeCollaborators UI
-      // For demo we do nothing here (your simulated collaborators remain)
-      console.debug("presence", users);
-    });
-    socketRef.current.on("edit-request", (data: any) => {
-      // owner receives an edit-request notification
-      toast(`${data.from?.name || "Someone"} requested edit access`);
-    });
-    socketRef.current.on("permission-error", (msg: string) => {
-      toast.error(msg);
-    });
+    const run = async () => {
+      setYjsStatus("connecting");
+      try {
+        let session: ICollabRoomResponse;
+        const roomFromUrl = searchParams.get("room");
 
-    // create Yjs doc + provider
-    const ydoc = new Y.Doc();
-    ydocRef.current = ydoc;
+        if (roomFromUrl) {
+          const meta = await getApi<
+            | { exists: false }
+            | (ICollabRoomResponse & {
+                exists: true;
+                createdAt: string;
+                memberCount: number;
+                otRevision: number;
+              })
+          >(`/collaboration/rooms/${roomFromUrl}`);
 
-    // token param: if you have JWT, append it so y-websocket server can verify permissions
-    const tokenParam = ""; // e.g. `?token=${encodeURIComponent(yourJwt)}`
-    const provider = new WebsocketProvider(
-      `${ywsUrl}${tokenParam}`,
-      `doc-session-abc123xyz`,
-      ydoc,
-      {
-        // optional awareness handling
-      },
-    );
-    providerRef.current = provider;
+          if (!meta.exists) {
+            toast.error("Session not found or server was restarted.");
+            const next = new URLSearchParams(searchParams);
+            next.delete("room");
+            setSearchParams(next, { replace: true });
+            session = await postApi<{ initialDocument?: string }, ICollabRoomResponse>(
+              "/collaboration/rooms",
+              { initialDocument: code },
+            );
+          } else {
+            session = {
+              roomId: meta.roomId,
+              yjsWsUrl: meta.yjsWsUrl,
+              yjsDocName: meta.yjsDocName,
+              codeEditorSocketPath: meta.codeEditorSocketPath,
+            };
+            otRevisionRef.current = meta.otRevision ?? 0;
+          }
+        } else {
+          session = await postApi<{ initialDocument?: string }, ICollabRoomResponse>(
+            "/collaboration/rooms",
+            { initialDocument: code },
+          );
+        }
 
-    // set local presence (used by awareness)
-    provider.awareness.setLocalStateField("user", {
-      id: getLocalUserId(),
-      name: getLocalUserName(),
-    });
+        if (cancelled) return;
 
-    // if Monaco mounted already -> bind below in "onEditorMount"
-    // but if editor is already mounted we can create binding immediately.
-    // We'll create binding in onEditorMount to ensure proper model.
+        sessionCollabRef.current = session;
+        setCollabRoomId(session.roomId);
+        const next = new URLSearchParams(searchParams);
+        next.set("room", session.roomId);
+        setSearchParams(next, { replace: true });
 
-    // cleanup when component unmounts or collaboration disabled
-    return () => {
-      socketRef.current?.disconnect?.();
-      providerRef.current?.disconnect?.();
-      ydocRef.current?.destroy?.();
-      ydocRef.current = null;
-      bindingRef.current = null;
+        const s = io(`${apiBase}/code-editor`, {
+          transports: ["websocket", "polling"],
+          autoConnect: true,
+        });
+        socketRef.current = s;
+
+        s.on("connect", () => {
+          s.emit("join-room", {
+            roomId: session.roomId,
+            userId: getLocalUserId(),
+            userName: user?.username ?? getLocalUserName(),
+          });
+        });
+
+        s.on(
+          "collab-handshake",
+          (h: { otRevision: number; otDocument: string }) => {
+            otRevisionRef.current = h.otRevision;
+          },
+        );
+
+        s.on("permission-update", ({ editors }: { editors: string[] }) => {
+          const myId = getLocalUserId();
+          const allowed = editors.length === 0 || editors.includes(myId);
+          setCanEdit(allowed);
+          monacoEditorRef.current?.updateOptions({ readOnly: !allowed });
+        });
+
+        s.on(
+          "presence",
+          ({ users }: { users: { userId: string; userName: string }[] }) => {
+            const myId = getLocalUserId();
+            setActiveCollaborators(
+              users
+                .filter((u) => u.userId !== myId)
+                .map((u) => ({
+                  id: u.userId,
+                  name: u.userName,
+                  avatar: "",
+                  color: hashColor(u.userId),
+                  isTyping: false,
+                  cursorPosition: 0,
+                })),
+            );
+          },
+        );
+
+        s.on("ot-ack", (p: { revision: number }) => {
+          otRevisionRef.current = p.revision;
+        });
+
+        s.on("collab-error", (err: { message?: string }) => {
+          toast.error(err?.message ?? "Collaboration error");
+        });
+
+        const ydoc = new Y.Doc();
+        ydocRef.current = ydoc;
+
+        const yjsUrlRaw =
+          session.yjsWsUrl.indexOf("://") === -1
+            ? `ws://${session.yjsWsUrl}`
+            : session.yjsWsUrl;
+        const yjsHttpUrl = yjsUrlRaw.startsWith("ws://")
+          ? `http://${yjsUrlRaw.slice("ws://".length)}`
+          : yjsUrlRaw.startsWith("wss://")
+            ? `https://${yjsUrlRaw.slice("wss://".length)}`
+            : yjsUrlRaw;
+
+        const provider = new WebsocketProvider(
+          yjsHttpUrl,
+          session.yjsDocName,
+          ydoc,
+          { connect: true },
+        );
+        providerRef.current = provider;
+
+        provider.awareness.setLocalStateField("user", {
+          id: getLocalUserId(),
+          name: user?.username ?? getLocalUserName(),
+        });
+
+        provider.on("status", (ev: { status: string }) => {
+          if (ev.status === "disconnected") setYjsStatus("connecting");
+          if (ev.status === "connected") {
+            window.setTimeout(() => {
+              setYjsStatus((prev) => (prev === "connecting" ? "synced" : prev));
+            }, 500);
+          }
+        });
+
+        provider.on("sync", (isSynced: boolean) => {
+          if (isSynced) setYjsStatus("synced");
+        });
+
+        if (!cancelled && monacoEditorRef.current && monacoInstanceRef.current) {
+          handleMonacoMount(monacoEditorRef.current, monacoInstanceRef.current);
+        }
+      } catch (e) {
+        console.error(e);
+        toast.error("Could not start collaboration session");
+        setCollaborationEnabled(false);
+        setYjsStatus("offline");
+      }
     };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      socketRef.current?.removeAllListeners();
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+      providerRef.current?.disconnect();
+      providerRef.current = null;
+      ydocRef.current?.destroy();
+      ydocRef.current = null;
+      bindingRef.current?.destroy();
+      bindingRef.current = null;
+      if (otEmitTimerRef.current) {
+        clearTimeout(otEmitTimerRef.current);
+        otEmitTimerRef.current = null;
+      }
+      monacoOtDisposableRef.current?.dispose();
+      monacoOtDisposableRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- session bootstrap only when toggling collaboration
   }, [collaborationEnabled]);
 
   function getLocalUserId() {
-    // If you have auth, use the real user id. For demo, use localStorage fallback.
+    if (user?._id) return user._id;
     const stored =
       typeof window !== "undefined"
         ? window.localStorage.getItem("devtinder_user_id")
@@ -389,10 +443,13 @@ export function CodeEditorPage() {
     const id = `user-${Math.random().toString(36).slice(2, 9)}`;
     try {
       window.localStorage.setItem("devtinder_user_id", id);
-    } catch {}
+    } catch {
+      /* localStorage may be unavailable */
+    }
     return id;
   }
   function getLocalUserName() {
+    if (user?.username) return user.username;
     const stored =
       typeof window !== "undefined"
         ? window.localStorage.getItem("devtinder_user_name")
@@ -401,33 +458,40 @@ export function CodeEditorPage() {
     const name = "You";
     try {
       window.localStorage.setItem("devtinder_user_name", name);
-    } catch {}
+    } catch {
+      /* localStorage may be unavailable */
+    }
     return name;
   }
 
-  function handleMonacoMount(editor: any, monaco: any) {
+  function handleMonacoMount(
+    editor: monaco.editor.IStandaloneCodeEditor,
+    monacoNs: typeof monaco,
+  ) {
     monacoEditorRef.current = editor;
-    monacoInstanceRef.current = monaco;
+    monacoInstanceRef.current = monacoNs;
+    setEditorSurfaceReady(true);
 
-    // ensure a model exists
     let model = editor.getModel();
     if (!model) {
-      model = monaco.editor.createModel(code, language);
+      model = monacoNs.editor.createModel(code, language);
       editor.setModel(model);
     }
 
-    // if Yjs provider exists, bind Monaco to Yjs
+    monacoOtDisposableRef.current?.dispose();
+    monacoOtDisposableRef.current = null;
+
     if (ydocRef.current && providerRef.current) {
       const yText = ydocRef.current.getText("monaco");
-      // If there is an existing binding, destroy it first
       if (bindingRef.current) {
         try {
           bindingRef.current.destroy();
-        } catch {}
+        } catch {
+          /* noop */
+        }
         bindingRef.current = null;
       }
 
-      // MonacoBinding expects the Monaco model instance (monaco model), editor set(s) and awareness
       const binding = new MonacoBinding(
         yText,
         model,
@@ -436,29 +500,33 @@ export function CodeEditorPage() {
       );
       bindingRef.current = binding;
 
-      // initialize local content if empty (so first join shows initial code)
       if (yText.length === 0) {
-        // seed with current code
         ydocRef.current.transact(() => {
           yText.insert(0, code || STARTER_CODE[language]);
         });
       }
 
-      // set editor readOnly depending on permission (canEdit)
       editor.updateOptions({ readOnly: !canEdit });
 
-      // react to awareness changes (presence/cursor updates)
-      providerRef.current.awareness.on("change", (changes: any) => {
-        // you can read current awareness states:
-        const states = Array.from(
-          providerRef.current!.awareness.getStates().entries(),
-        ).map(([clientId, state]) => state);
-        // merge awareness into your activeCollaborators UI if desired
-        // (left as an exercise — you already have a simulated UI)
-      });
+      docLenBeforeOtRef.current = model.getValueLength();
+      monacoOtDisposableRef.current = editor.onDidChangeModelContent(
+        (e: monaco.editor.IModelContentChangedEvent) => {
+          const beforeLen = docLenBeforeOtRef.current;
+          docLenBeforeOtRef.current = model.getValueLength();
+          const op = monacoChangesToOtJson(e, beforeLen);
+          if (!op || !socketRef.current || !sessionCollabRef.current) return;
+          if (otEmitTimerRef.current) clearTimeout(otEmitTimerRef.current);
+          otEmitTimerRef.current = setTimeout(() => {
+            socketRef.current?.emit("ot-submit", {
+              roomId: sessionCollabRef.current!.roomId,
+              revision: otRevisionRef.current,
+              op,
+            });
+          }, 150);
+        },
+      );
     }
 
-    // handle local change events when collaboration is NOT enabled: update `code` state for run, preview etc
     if (!collaborationEnabled) {
       editor.onDidChangeModelContent(() => {
         setCode(editor.getValue());
@@ -466,26 +534,56 @@ export function CodeEditorPage() {
     }
   }
 
+  const monacoLanguageForTab = (lang: keyof typeof STARTER_CODE) =>
+    lang === "javascript"
+      ? "javascript"
+      : lang === "json"
+        ? "json"
+        : lang;
+
   const handleLanguageChange = (lang: string) => {
     const newLang = lang as keyof typeof STARTER_CODE;
     setLanguage(newLang);
-    setCode(STARTER_CODE[newLang]);
     setOutput("");
     setError("");
-    // update Monaco model if present
+
+    if (collaborationEnabled && monacoEditorRef.current && monacoInstanceRef.current) {
+      const editor = monacoEditorRef.current;
+      const ms = monacoInstanceRef.current;
+      const model = editor.getModel();
+      if (!model) {
+        return;
+      }
+      ms.editor.setModelLanguage(model, monacoLanguageForTab(newLang));
+      setCode(editor.getValue());
+      try {
+        providerRef.current?.awareness?.setLocalStateField?.(
+          "monacoLanguage",
+          newLang,
+        );
+      } catch {
+        /* noop */
+      }
+      return;
+    }
+
+    setCode(STARTER_CODE[newLang]);
     if (monacoInstanceRef.current && monacoEditorRef.current) {
-      const monaco = monacoInstanceRef.current;
-      const model = monaco.editor.createModel(
+      const monacoNs = monacoInstanceRef.current;
+      const editor = monacoEditorRef.current;
+      const oldModel = editor.getModel();
+      const lid = monacoLanguageForTab(newLang);
+      const nextModel = monacoNs.editor.createModel(
         STARTER_CODE[newLang],
-        newLang === "javascript" ? "javascript" : newLang,
+        lid,
       );
-      monacoEditorRef.current.setModel(model);
+      editor.setModel(nextModel);
+      oldModel?.dispose();
     }
   };
 
   const handleCodeChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setCode(e.target.value);
-    setCursorPosition(e.target.selectionStart);
   };
 
   const runCode = () => {
@@ -496,11 +594,13 @@ export function CodeEditorPage() {
       if (language === "javascript") {
         const logs: string[] = [];
         const originalLog = console.log;
-        console.log = (...args: any[]) => {
+        console.log = (...args: unknown[]) => {
           logs.push(
             args
               .map((a) =>
-                typeof a === "object" ? JSON.stringify(a, null, 2) : String(a),
+                typeof a === "object" && a !== null
+                  ? JSON.stringify(a, null, 2)
+                  : String(a),
               )
               .join(" "),
           );
@@ -531,8 +631,8 @@ export function CodeEditorPage() {
       } else if (language === "html" || language === "css") {
         setOutput("Preview updated in the preview pane →");
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setIsRunning(false);
     }
@@ -544,15 +644,40 @@ export function CodeEditorPage() {
   };
 
   const copySessionLink = () => {
+    if (!sessionLink) {
+      toast.error("Session is not ready yet.");
+      return;
+    }
     navigator.clipboard.writeText(sessionLink);
     setCopiedLink(true);
     toast.success("Session link copied to clipboard!");
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const inviteFriend = (friendId: string, friendName: string) => {
-    setInvitedFriends((prev) => new Set(prev).add(friendId));
-    toast.success(`Invitation sent to ${friendName}!`);
+  const inviteFriend = async (receiverId: string, friendDisplayName: string) => {
+    if (!collabRoomId) {
+      toast.error("Session is not ready yet.");
+      return;
+    }
+    if (!user?._id) {
+      toast.error("Sign in to send invites.");
+      return;
+    }
+    try {
+      await postApi<{ roomId: string; receiverId: string }, IBaseResponse>(
+        "/collaboration/invite",
+        {
+          roomId: String(collabRoomId).trim(),
+          receiverId: String(receiverId).trim(),
+        },
+      );
+      setInvitedFriends((prev) => new Set(prev).add(receiverId));
+      toast.success(
+        `Invite sent — ${friendDisplayName} will see it under Notifications (same session link applies).`,
+      );
+    } catch {
+      /* interceptor */
+    }
   };
 
   const clearCode = () => {
@@ -622,10 +747,22 @@ export function CodeEditorPage() {
                 </p>
               </div>
             </div>
-            <Badge className="bg-[#007BFF]/20 text-[#007BFF] border border-[#007BFF]/30">
-              <FileCode className="w-3 h-3 mr-1" />
-              {language.toUpperCase()}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="bg-[#007BFF]/20 text-[#007BFF] border border-[#007BFF]/30">
+                <FileCode className="w-3 h-3 mr-1" />
+                {language.toUpperCase()}
+              </Badge>
+              {collaborationEnabled && (
+                <>
+                  <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs">
+                    CRDT · Yjs
+                  </Badge>
+                  <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs">
+                    OT · server
+                  </Badge>
+                </>
+              )}
+            </div>
           </div>
           <Card className="glass border-white/10 p-4">
             <div className="flex items-center justify-between">
@@ -699,7 +836,12 @@ export function CodeEditorPage() {
                         </div>
                         <div className="flex gap-2">
                           <Input
-                            value={sessionLink}
+                            value={
+                              sessionLink ||
+                              (collaborationEnabled
+                                ? "Preparing share link…"
+                                : "Enable Live Collaboration first")
+                            }
                             readOnly
                             className="bg-[#0A0A0A] border-white/10 text-gray-300 text-sm"
                           />
@@ -723,15 +865,40 @@ export function CodeEditorPage() {
                           Your Connections
                         </h4>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {MOCK_FRIENDS.map((friend) => {
-                            const isInvited = invitedFriends.has(friend.id);
-                            const isActive = activeCollaborators.some(
-                              (c) => c.name === friend.name,
-                            );
+                          {connectionsLoading ? (
+                            <div className="space-y-2">
+                              <Skeleton className="h-14 w-full bg-white/5" />
+                              <Skeleton className="h-14 w-full bg-white/5" />
+                            </div>
+                          ) : matchedConnections.length === 0 ? (
+                            <p className="text-sm text-gray-500 px-2 py-4 rounded-xl border border-dashed border-white/10 bg-white/[0.02]">
+                              You don&apos;t have any matches yet. When you both swipe right (and accept), they appear here — then Invite sends an in‑app notification with this session&apos;s join link baked in.
+                            </p>
+                          ) : (
+                            matchedConnections.map((conn) => {
+                              const receiverId = (
+                                typeof conn._id === "string"
+                                  ? conn._id
+                                  : String(conn._id ?? "")
+                              ).trim();
+                              const name = displayField(
+                                conn.username,
+                                displayField(conn.email, "Member"),
+                              );
+                              const rawUser = displayField(conn.username);
+                              const handle = rawUser
+                                ? `@${rawUser.replace(/^@+/, "")}`
+                                : displayField(conn.email, "");
+                              const avatarUrl = displayField(conn.avatar);
 
-                            return (
+                              const isInvited = invitedFriends.has(receiverId);
+                              const isActive = activeCollaborators.some(
+                                (c) => String(c.id) === String(receiverId),
+                              );
+
+                              return (
                               <motion.div
-                                key={friend.id}
+                                key={receiverId}
                                 initial={{
                                   opacity: 0,
                                   y: 10,
@@ -745,42 +912,36 @@ export function CodeEditorPage() {
                                 <div className="flex items-center gap-3">
                                   <div className="relative">
                                     <Avatar className="w-10 h-10">
-                                      <AvatarImage
-                                        src={friend.avatar}
-                                        alt={friend.name}
-                                      />
+                                      {avatarUrl ? (
+                                        <AvatarImage src={avatarUrl} alt={name} />
+                                      ) : null}
                                       <AvatarFallback>
-                                        {friend.name[0]}
+                                        {displayInitials(conn.username ?? conn.email)}
                                       </AvatarFallback>
                                     </Avatar>
-                                    <div
-                                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#1C1C1E] ${
-                                        friend.status === "online"
-                                          ? "bg-green-500"
-                                          : "bg-gray-500"
-                                      }`}
-                                    />
                                   </div>
                                   <div>
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm text-white">
-                                        {friend.name}
+                                        {name}
                                       </span>
                                       {isActive && (
                                         <Badge className="bg-green-500/20 text-green-500 border-green-500/30 text-xs px-1.5 py-0">
-                                          Active
+                                          In session
                                         </Badge>
                                       )}
                                     </div>
-                                    <span className="text-xs text-gray-400">
-                                      {friend.username}
-                                    </span>
+                                    {handle ? (
+                                      <span className="text-xs text-gray-400">
+                                        {handle}
+                                      </span>
+                                    ) : null}
                                   </div>
                                 </div>
                                 <Button
                                   size="sm"
                                   onClick={() =>
-                                    inviteFriend(friend.id, friend.name)
+                                    void inviteFriend(receiverId, name)
                                   }
                                   disabled={isInvited || isActive}
                                   className={
@@ -807,15 +968,17 @@ export function CodeEditorPage() {
                                   )}
                                 </Button>
                               </motion.div>
-                            );
-                          })}
+                              );
+                            })
+                          )}
                         </div>
                       </div>
 
                       <div className="pt-2 border-t border-white/10">
                         <p className="text-xs text-gray-400">
-                          💡 Tip: Friends will receive a notification and can
-                          join with one click
+                          Tip: Invites appear under Notifications — tap one to open
+                          this session in the code editor with Live Collaboration enabled.
+                          You can always share the link above manually too.
                         </p>
                       </div>
                     </div>
@@ -1021,9 +1184,23 @@ export function CodeEditorPage() {
                       spellCheck={false}
                     />
                   ) : (
-                    <div style={{ height: 420 }}>
+                    <div className="relative rounded-md" style={{ height: 420 }}>
+                      {collaborationEnabled &&
+                        (!editorSurfaceReady || yjsStatus !== "synced") && (
+                          <div className="absolute inset-0 z-10 flex flex-col gap-2 rounded-md border border-white/10 bg-[#0A0A0A]/95 p-4">
+                            <Skeleton className="h-3 w-2/3 bg-white/10" />
+                            <Skeleton className="h-3 w-full bg-white/10" />
+                            <Skeleton className="min-h-[320px] flex-1 w-full bg-white/10" />
+                            <p className="text-center text-xs text-gray-400">
+                              Loading editor and syncing CRDT (Yjs)…
+                            </p>
+                          </div>
+                        )}
                       <Editor
                         height="420px"
+                        loading={
+                          <Skeleton className="h-[420px] w-full rounded-md bg-white/10" />
+                        }
                         defaultLanguage={
                           language === "javascript"
                             ? "javascript"
@@ -1179,8 +1356,11 @@ export function CodeEditorPage() {
                     Collaboration Active
                   </h4>
                   <p className="text-xs text-gray-400">
-                    Changes are synced in real-time with all collaborators. You
-                    can see their cursors and edits as they type.
+                    The buffer is merged with{" "}
+                    <span className="text-emerald-400">Yjs (CRDT)</span> over the
+                    y-websocket server. Edits are also validated through an{" "}
+                    <span className="text-amber-300">operational transformation</span>{" "}
+                    pipeline on the API for ordering and history.
                   </p>
                 </div>
               )}

@@ -6,8 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Code2, Github } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { postApi, getApi } from "../utils/api";
-import { socket } from "../utils/socket";
 import { useAuth } from "../hooks/useAuth";
 import { useAuth0 } from "@auth0/auth0-react";
 import type {
@@ -21,7 +21,7 @@ import type {
 export function AuthPage() {
   const onNavigate = useNavigate();
   const { setUser } = useAuth();
-  const { loginWithRedirect, isAuthenticated, user, isLoading } = useAuth0();
+  const { loginWithRedirect, isAuthenticated, user } = useAuth0();
 
   const [loginData, setLoginData] = useState<ILoginRequest>({
     email: "",
@@ -48,23 +48,29 @@ export function AuthPage() {
 
   const handleLogin = async () => {
     try {
-      await postApi<ILoginRequest, ILoginResponse>("/user/login", loginData);
+      const res = await postApi<ILoginRequest, ILoginResponse>(
+        "/user/login",
+        loginData,
+      );
+      toast.success(res.message ?? "Signed in");
       onNavigate("/home");
-      fetchUserProfile();
-    } catch (err) {
-      console.error(" LOGIN ERROR:", err);
+      await fetchUserProfile();
+    } catch {
+      /* Error toast from API interceptor */
     }
   };
 
   const handleRegister = async () => {
     try {
-      await postApi<ICreateRequest, ILoginResponse>(
+      const res = await postApi<ICreateRequest, ILoginResponse>(
         "/user/register",
         signupData,
       );
-      onNavigate("/auth");
-    } catch (err) {
-      console.error(" REGISTER ERROR:", err);
+      toast.success(res.message ?? "Account created");
+      onNavigate("/home");
+      await fetchUserProfile();
+    } catch {
+      /* Error toast from API interceptor */
     }
   };
 
@@ -81,13 +87,13 @@ export function AuthPage() {
       if (!isAuthenticated || !user) return;
 
       try {
-        const res = await postApi<IAuth0, ILoginResponse>("/user/auth/google", {
+        await postApi<IAuth0, ILoginResponse>("/user/auth/google", {
           email: user.email,
           username: user.name,
           avatar: user.picture,
         });
-      } catch (err) {
-        console.error("Auth0 backend login failed", err);
+      } catch {
+        /* Error toast from API interceptor */
       }
     };
 
@@ -279,7 +285,7 @@ export function AuthPage() {
         <div className="mt-6 text-center">
           <button
             className="text-gray-400 hover:text-white"
-            onClick={() => onNavigate("landing")}
+            onClick={() => onNavigate("/")}
           >
             ← Back to Home
           </button>

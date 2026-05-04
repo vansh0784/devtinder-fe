@@ -12,16 +12,12 @@ import {
   Twitter,
   Linkedin,
   Code2,
-  Star,
-  GitFork,
-  Users,
   Heart,
   MessageCircle,
   Share2,
   Bookmark,
   ExternalLink,
   UserPlus,
-  UserMinus,
   UserCheck,
   Mail,
 } from "lucide-react";
@@ -30,8 +26,39 @@ import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
 
+interface MockProfilePost {
+  id: number;
+  content: string;
+  code?: string;
+  tags: string[];
+  likes: number;
+  comments: number;
+  shares: number;
+  timestamp: string;
+  projectLink?: string;
+  image?: string;
+}
+
+interface MockProfileUser {
+  id: string;
+  name: string;
+  username: string;
+  avatar: string;
+  coverImage: string;
+  bio: string;
+  location: string;
+  website: string;
+  joinedDate: string;
+  verified: boolean;
+  stats: { followers: number; following: number; posts: number };
+  skills: string[];
+  interests?: string[];
+  social: { github: string; twitter: string; linkedin: string };
+  posts: MockProfilePost[];
+}
+
 // Mock user data
-const MOCK_USERS: Record<string, any> = {
+const MOCK_USERS: Record<string, MockProfileUser> = {
   user_1: {
     id: "user_1",
     name: "Sarah Chen",
@@ -534,7 +561,7 @@ export function UserProfilePage() {
               </TabsList>
 
               <TabsContent value="posts" className="mt-6 space-y-6">
-                {user.posts.map((post: any, index: number) => (
+                {user.posts.map((post: MockProfilePost, index: number) => (
                   <motion.div
                     key={post.id}
                     initial={{ opacity: 0, y: 20 }}

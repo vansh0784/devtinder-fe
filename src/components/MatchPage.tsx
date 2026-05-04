@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { X, Heart, Star, MapPin, Code2, Zap } from "lucide-react";
@@ -12,91 +12,44 @@ import {
 import type { IUser, IBaseResponse } from "../utils/types";
 import { getApi, postApi } from "../utils/api";
 import { toast } from "sonner";
-import { socket } from "../utils/socket";
 import { useAuth } from "../hooks/useAuth";
-
-const DEVELOPERS = [
-  {
-    id: 1,
-    name: "Emma Wilson",
-    username: "@emmawilson",
-    avatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=400",
-    bio: "Frontend architect with a passion for creating beautiful, accessible user experiences",
-    location: "New York, NY",
-    skills: ["React", "TypeScript", "TailwindCSS", "Next.js", "Figma"],
-    interests: ["UI/UX Design", "Web Accessibility", "Open Source"],
-    githubStars: 2340,
-    projects: 28,
-    gradient: "from-[#FF6B6B] to-[#FFE66D]",
-  },
-  {
-    id: 2,
-    name: "Marcus Chen",
-    username: "@marcuschen",
-    avatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=400",
-    bio: "Backend wizard specializing in scalable microservices and cloud architecture",
-    location: "Seattle, WA",
-    skills: ["Node.js", "Python", "Docker", "Kubernetes", "AWS"],
-    interests: ["Cloud Computing", "DevOps", "System Design"],
-    githubStars: 1890,
-    projects: 34,
-    gradient: "from-[#007BFF] to-[#00D4FF]",
-  },
-  {
-    id: 3,
-    name: "Sofia Rodriguez",
-    username: "@sofiarodriguez",
-    avatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=400",
-    bio: "AI/ML engineer building the next generation of intelligent applications",
-    location: "San Francisco, CA",
-    skills: ["Python", "TensorFlow", "PyTorch", "React", "FastAPI"],
-    interests: ["Machine Learning", "Deep Learning", "Computer Vision"],
-    githubStars: 3450,
-    projects: 19,
-    gradient: "from-[#8A2BE2] to-[#FF1493]",
-  },
-  {
-    id: 4,
-    name: "David Kim",
-    username: "@davidkim",
-    avatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=400",
-    bio: "Full-stack developer with a focus on real-time applications and WebSocket magic",
-    location: "Austin, TX",
-    skills: ["JavaScript", "Node.js", "WebSockets", "MongoDB", "React"],
-    interests: ["Real-time Systems", "Web Development", "Startups"],
-    githubStars: 1567,
-    projects: 42,
-    gradient: "from-[#00D4FF] to-[#6C63FF]",
-  },
-  {
-    id: 5,
-    name: "Olivia Martinez",
-    username: "@oliviamartinez",
-    avatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=400",
-    bio: "Mobile developer crafting native experiences for iOS and Android",
-    location: "Los Angeles, CA",
-    skills: ["Swift", "Kotlin", "React Native", "Flutter", "Firebase"],
-    interests: ["Mobile Development", "App Design", "Performance"],
-    githubStars: 2100,
-    projects: 31,
-    gradient: "from-[#FF6B6B] to-[#8A2BE2]",
-  },
-];
+import { displayField, displayInitials } from "../utils/display";
 
 export function MatchPage() {
   const { user } = useAuth();
 
   const [allUser, setAllUser] = useState<IUser[]>([]);
-  const [currentIndex, setCurrentIndex] = useState<number>(allUser?.length | 0);
-  const [matches, setMatches] = useState<number[]>([]);
-  const [passes, setPasses] = useState<number[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [matches, setMatches] = useState<string[]>([]);
+  const [passes, setPasses] = useState<string[]>([]);
+  const [devsLoaded, setDevsLoaded] = useState(false);
 
-  const currentDev: IUser = allUser[currentIndex];
+  useEffect(() => {
+    getApi<IUser[]>("/devs")
+      .then((res) => setAllUser([...res].reverse()))
+      .catch((err) => {
+        console.error(err);
+        setAllUser([]);
+      })
+      .finally(() => setDevsLoaded(true));
+  }, []);
+
+  const feed = useMemo(() => {
+    if (!user?._id) return [];
+    return allUser.filter((d) => String(d._id) !== String(user._id));
+  }, [allUser, user?._id]);
+
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [user?._id]);
+
+  useEffect(() => {
+    setCurrentIndex((i) =>
+      feed.length === 0 ? 0 : Math.min(i, feed.length - 1),
+    );
+  }, [feed.length]);
+
+  const currentDev = feed[currentIndex];
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
   const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
@@ -114,46 +67,82 @@ export function MatchPage() {
     }
   };
 
+  const nextCard = () => {
+    setTimeout(() => {
+      setCurrentIndex((i) => {
+        if (i < feed.length - 1) {
+          x.set(0);
+          return i + 1;
+        }
+        return i;
+      });
+    }, 300);
+  };
+
   const handleLike = () => {
     if (!currentDev?._id || !user?._id) return;
 
+    const receiverId = currentDev._id;
+    setMatches((m) => [...m, receiverId]);
+    nextCard();
+
     postApi<{ recieverId: string }, IBaseResponse>(`/connection/right`, {
-      recieverId: currentDev._id,
+      recieverId: receiverId,
     })
       .then((res) => {
         if (res.statusCode === 200) {
-          toast.success("Request sent successfully");
-
-          socket.emit("send_request", {
-            senderId: user._id,
-            receiverId: currentDev._id,
-          });
+          toast.success(res.message ?? "Sent");
         }
-
-        nextCard();
       })
       .catch(() => toast.error("Request failed, Please try later"));
   };
 
   const handlePass = () => {
     if (!currentDev?._id) return;
+    const recieverId = currentDev._id;
+    setPasses((p) => [...p, recieverId]);
+    nextCard();
+
     postApi<{ recieverId: string }, IBaseResponse>(`/connection/left`, {
-      recieverId: currentDev?._id,
-    })
-      .then(() => nextCard())
-      .catch(() => toast.error("Request failed, Please try later"));
+      recieverId,
+    }).catch(() => toast.error("Request failed, Please try later"));
   };
 
-  const nextCard = () => {
-    setTimeout(() => {
-      if (currentIndex < DEVELOPERS.length - 1) {
-        setCurrentIndex(currentIndex + 1);
-        x.set(0);
-      }
-    }, 300);
-  };
+  if (!devsLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 text-gray-400">
+        Loading developers…
+      </div>
+    );
+  }
 
-  if (currentIndex >= DEVELOPERS.length) {
+  if (!user?._id) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 text-center text-gray-400 max-w-md mx-auto">
+        Sign in from the auth page to view and swipe on developer matches.
+      </div>
+    );
+  }
+
+  if (allUser.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 text-center text-gray-400">
+        No developers to show right now.
+      </div>
+    );
+  }
+
+  if (feed.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 text-center text-gray-400">
+        No other developers to show right now.
+      </div>
+    );
+  }
+
+  const noMoreCards = currentIndex >= feed.length;
+
+  if (noMoreCards) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <motion.div
@@ -186,17 +175,6 @@ export function MatchPage() {
     );
   }
 
-  useEffect(() => {
-    getApi<IUser[]>("/devs")
-      .then((res) => setAllUser(res.reverse()))
-      .catch((err) => {
-        console.error(err);
-        setAllUser([]);
-      });
-  }, []);
-
-  console.log("All user", allUser);
-
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md">
@@ -206,7 +184,13 @@ export function MatchPage() {
         </div>
         <div className="relative h-[600px] flex items-center justify-center">
           <AnimatePresence>
-            {allUser.slice(currentIndex, currentIndex + 2).map((dev, index) => (
+            {feed.slice(currentIndex, currentIndex + 2).map((dev, index) => {
+              const unameClean = displayField(dev?.username).replace(/^@+/, "");
+              const devName = unameClean || "Developer";
+              const devBio = displayField(dev?.bio);
+              const devLocation = displayField(dev?.location);
+              const avatarUrl = displayField(dev?.avatar);
+              return (
               <motion.div
                 key={dev?._id}
                 style={{
@@ -243,25 +227,38 @@ export function MatchPage() {
                   </div>
                   <div className="relative -mt-16 px-6">
                     <Avatar className="w-32 h-32 border-4 border-[#1C1C1E] mx-auto shadow-2xl">
-                      <AvatarImage src={dev?.avatar} alt={dev?.username} />
+                      {avatarUrl ? (
+                        <AvatarImage src={avatarUrl} alt={devName} />
+                      ) : null}
                       <AvatarFallback>
-                        {dev?.username?.split(" ")[0]}
+                        {displayInitials(dev?.username)}
                       </AvatarFallback>
                     </Avatar>
                   </div>
                   <div className="p-6 pt-4 bg-[#1C1C1E]">
                     <div className="text-center mb-6">
                       <h2 className="text-2xl text-white mb-1">
-                        {dev.username}
+                        {devName}
                       </h2>
-                      <p className="text-gray-400 mb-4">{`@${dev.username}`}</p>
-                      <p className="text-gray-300 mb-4">{dev.bio}</p>
+                      {unameClean ? (
+                        <p className="text-gray-400 mb-4">@{unameClean}</p>
+                      ) : null}
+                      <p className="text-gray-300 mb-4">
+                        {devBio || "No bio yet."}
+                      </p>
 
                       <div className="flex items-center justify-center gap-4 text-sm text-gray-400 mb-4">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="w-4 h-4" />
-                          {dev.location}
-                        </div>
+                        {devLocation ? (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-4 h-4" />
+                            {devLocation}
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 opacity-70">
+                            <MapPin className="w-4 h-4" />
+                            —
+                          </span>
+                        )}
                         <div className="flex items-center gap-1">
                           <Star className="w-4 h-4 text-yellow-500" />
                           {2200}
@@ -275,14 +272,18 @@ export function MatchPage() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {dev?.skills &&
-                          dev?.skills.map((skill) => (
+                          dev?.skills.map((skill) => {
+                            const s = displayField(skill);
+                            if (!s) return null;
+                            return (
                             <Badge
                               key={skill}
                               className="bg-[#007BFF]/20 border border-[#007BFF]/30"
                             >
-                              {skill}
+                              {s}
                             </Badge>
-                          ))}
+                            );
+                          })}
                       </div>
                     </div>
                     <div className="mb-6">
@@ -292,15 +293,20 @@ export function MatchPage() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {dev?.interests &&
-                          dev?.interests.map((interest) => (
+                          dev?.interests.map((interest, i) => {
+                            const lab = displayField(String(interest));
+                            if (!lab)
+                              return null;
+                            return (
                             <Badge
-                              key={interest}
+                              key={`${lab}-${i}`}
                               variant="outline"
                               className="border-white/20 text-white"
                             >
-                              {interest}
+                              {lab}
                             </Badge>
-                          ))}
+                            );
+                          })}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
@@ -314,7 +320,8 @@ export function MatchPage() {
                   </div>
                 </div>
               </motion.div>
-            ))}
+            );
+            })}
           </AnimatePresence>
         </div>
         <div className="flex justify-center gap-6 mt-8">
@@ -337,7 +344,7 @@ export function MatchPage() {
           </motion.button>
         </div>
         <div className="text-center mt-6 text-gray-400 text-sm">
-          {currentIndex + 1} / {allUser && allUser?.length}
+          {currentIndex + 1} / {feed.length}
         </div>
       </div>
     </div>

@@ -6,12 +6,15 @@ import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { User, Bell, Shield, Moon, Sun, Github, Trash2 } from "lucide-react";
+import { User, Bell, Shield, Moon, Sun, Github, Trash2, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { displayField, displayInitials } from "../utils/display";
 
 export function SettingsPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(true);
   const [notifications, setNotifications] = useState({
     matches: true,
@@ -19,6 +22,15 @@ export function SettingsPage() {
     comments: true,
     followers: false,
   });
+
+  const avatarSrc = displayField(user?.avatar) || undefined;
+  const rawUsername = displayField(user?.username).replace(/^@/, "");
+  const usernameParts = rawUsername.split(/\s+/).filter(Boolean);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/auth");
+  };
 
   return (
     <div className="min-h-screen p-6 max-w-4xl mx-auto">
@@ -59,8 +71,12 @@ export function SettingsPage() {
               <h3 className="text-xl text-white mb-6">Profile Information</h3>
               <div className="flex items-center gap-6 mb-8">
                 <Avatar className="w-24 h-24 border-4 border-[#007BFF]">
-                  <AvatarImage src={`${user?.avatar}`} alt="Profile" />
-                  <AvatarFallback>AJ</AvatarFallback>
+                  {avatarSrc ? (
+                    <AvatarImage src={avatarSrc} alt="Profile" />
+                  ) : null}
+                  <AvatarFallback>
+                    {displayInitials(user?.username, "U")}
+                  </AvatarFallback>
                 </Avatar>
                 <div>
                   <Button className="bg-linear-to-r from-[#007BFF] to-[#8A2BE2] mb-2">
@@ -77,7 +93,7 @@ export function SettingsPage() {
                     <Label htmlFor="firstName">First Name</Label>
                     <Input
                       id="firstName"
-                      defaultValue={user?.username?.split(" ")[0]}
+                      defaultValue={usernameParts[0] ?? ""}
                       className="bg-white/5 border-white/10 text-white"
                     />
                   </div>
@@ -85,7 +101,7 @@ export function SettingsPage() {
                     <Label htmlFor="lastName">Last Name</Label>
                     <Input
                       id="lastName"
-                      defaultValue={user?.username?.split(" ")[1]}
+                      defaultValue={usernameParts[1] ?? ""}
                       className="bg-white/5 border-white/10 text-white"
                     />
                   </div>
@@ -95,7 +111,7 @@ export function SettingsPage() {
                   <Label htmlFor="username">Username</Label>
                   <Input
                     id="username"
-                    defaultValue={`@${user?.username}`}
+                    defaultValue={rawUsername ? `@${rawUsername}` : ""}
                     className="bg-white/5 border-white/10 text-white"
                   />
                 </div>
@@ -105,7 +121,7 @@ export function SettingsPage() {
                   <Input
                     id="email"
                     type="email"
-                    defaultValue={`${user?.email}`}
+                    defaultValue={displayField(user?.email)}
                     className="bg-white/5 border-white/10 text-white"
                   />
                 </div>
@@ -115,7 +131,7 @@ export function SettingsPage() {
                   <textarea
                     id="bio"
                     rows={4}
-                    defaultValue={`${user?.bio}`}
+                    defaultValue={displayField(user?.bio)}
                     className="w-full rounded-xl bg-white/5 border border-white/10 text-white p-3 resize-none"
                   />
                 </div>
@@ -124,7 +140,7 @@ export function SettingsPage() {
                   <Label htmlFor="location">Location</Label>
                   <Input
                     id="location"
-                    defaultValue={`${user?.location}`}
+                    defaultValue={displayField(user?.location)}
                     className="bg-white/5 border-white/10 text-white"
                   />
                 </div>
@@ -133,7 +149,7 @@ export function SettingsPage() {
                   <Label htmlFor="website">Website</Label>
                   <Input
                     id="website"
-                    defaultValue={`${user?.portfolio}`}
+                    defaultValue={displayField(user?.portfolio)}
                     className="bg-white/5 border-white/10 text-white"
                   />
                 </div>
@@ -339,7 +355,16 @@ export function SettingsPage() {
                   <Switch defaultChecked />
                 </div>
 
-                <div className="pt-6 border-t border-white/10">
+                <div className="pt-6 border-t border-white/10 flex flex-col gap-3">
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={handleLogout}
+                    className="border-white/20 bg-[#2f2f30] text-white hover:bg-white/10 w-full sm:w-auto"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Log out
+                  </Button>
                   <Button
                     variant="destructive"
                     className="bg-red-500/20 text-red-400 border border-red-500/30"

@@ -187,6 +187,13 @@ export function HomePage() {
         <h1 className="text-3xl text-white mb-2">Developer Feed</h1>
         <p className="text-gray-400">
           Discover projects and connect with developers
+          {feedPosts.length > 0 ? (
+            <span className="text-emerald-400/90">
+              {" "}
+              · {feedPosts.length} post{feedPosts.length === 1 ? "" : "s"} from
+              API
+            </span>
+          ) : null}
         </p>
       </div>
 

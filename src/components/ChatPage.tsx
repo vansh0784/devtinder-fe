@@ -17,102 +17,9 @@ import { socket } from "../utils/socket";
 import { useAuth } from "../hooks/useAuth";
 import { type IUser, type IMessage } from "../utils/types";
 import { getApi } from "../utils/api";
+import { toast } from "sonner";
 import { useNotifications } from "../context/NotificationContext";
 import { useRef } from "react";
-
-const CHATS = [
-  {
-    id: 1,
-    name: "Emma Wilson",
-    username: "@emmawilson",
-    avatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=100",
-    lastMessage: "That sounds great! When can we start?",
-    time: "2m ago",
-    unread: 2,
-    online: true,
-  },
-  {
-    id: 2,
-    name: "Marcus Chen",
-    username: "@marcuschen",
-    avatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=100",
-    lastMessage: "I'll send over the API documentation",
-    time: "1h ago",
-    unread: 0,
-    online: true,
-  },
-  {
-    id: 3,
-    name: "Sofia Rodriguez",
-    username: "@sofiarodriguez",
-    avatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=100",
-    lastMessage: "Check out this ML model I built",
-    time: "3h ago",
-    unread: 1,
-    online: false,
-  },
-  {
-    id: 4,
-    name: "David Kim",
-    username: "@davidkim",
-    avatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=100",
-    lastMessage: "The WebSocket implementation looks good!",
-    time: "1d ago",
-    unread: 0,
-    online: false,
-  },
-];
-
-const MESSAGES = [
-  {
-    id: 1,
-    sender: "them",
-    content: "Hey! I saw your project on GitHub. Really impressive work!",
-    time: "10:30 AM",
-  },
-  {
-    id: 2,
-    sender: "me",
-    content: "Thank you! I've been working on it for a few months now.",
-    time: "10:32 AM",
-  },
-  {
-    id: 3,
-    sender: "them",
-    content:
-      "I'm actually working on something similar. Would you be interested in collaborating?",
-    time: "10:35 AM",
-  },
-  {
-    id: 4,
-    sender: "me",
-    content: "That sounds great! What kind of project are you working on?",
-    time: "10:37 AM",
-  },
-  {
-    id: 5,
-    sender: "them",
-    content:
-      "It's a real-time collaboration tool for developers. Think Figma but for code.",
-    time: "10:40 AM",
-  },
-  {
-    id: 6,
-    sender: "me",
-    content: "Wow, that's exactly the kind of project I'd love to work on! 🚀",
-    time: "10:42 AM",
-  },
-  {
-    id: 7,
-    sender: "them",
-    content: "That sounds great! When can we start?",
-    time: "10:45 AM",
-  },
-];
 
 export function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -128,6 +35,14 @@ export function ChatPage() {
   const getRoomId = (userId1: string, userId2: string) => {
     return [userId1, userId2].sort().join("_");
   };
+
+  const sortMessagesByTime = (list: IMessage[]) =>
+    [...list].sort(
+      (a, b) =>
+        new Date(a.createdAt ?? 0).getTime() -
+        new Date(b.createdAt ?? 0).getTime(),
+    );
+
   useEffect(() => {
     if (!selectedChat || !user) return;
 
@@ -143,39 +58,72 @@ export function ChatPage() {
     if (!user || !selectedChat) return;
 
     const roomId = getRoomId(user._id, selectedChat._id);
+    let cancelled = false;
 
-    // 1️⃣ Clear old messages immediately
     setMessages([]);
 
-    // 2️⃣ Join room
-    socket.emit("join_room", {
-      roomId,
-      userId: user._id,
-    });
+    void getApi<IMessage[]>(`/messages/room/${encodeURIComponent(roomId)}`, {
+      params: { limit: 200 },
+    })
+      .then((rows) => {
+        if (!cancelled) {
+          const list = Array.isArray(rows) ? rows : [];
+          setMessages(sortMessagesByTime(list));
+        }
+      })
+      .catch(() => {});
 
-    // 3️⃣ Ask backend for chat history
-    socket.emit("load_messages", { roomId });
-
-    // 4️⃣ Receive chat history
-    const handleHistory = (msgs: IMessage[]) => {
-      setMessages(msgs);
+    const bindSocketRooms = () => {
+      socket.emit("join_room", { roomId, userId: user._id });
+      socket.emit("load_messages", { roomId, limit: 200 });
     };
 
-    // 5️⃣ Receive new messages
+    bindSocketRooms();
+    socket.on("connect", bindSocketRooms);
+
+    const handleHistory = (msgs: IMessage[]) => {
+      if (cancelled || !Array.isArray(msgs)) return;
+      if (msgs.length > 0) setMessages(sortMessagesByTime(msgs));
+    };
+
     const handleReceive = (msg: IMessage) => {
-      if (msg.roomId === roomId) {
-        setMessages((prev) =>
-          prev.some((m) => m._id === msg._id) ? prev : [...prev, msg],
-        );
-      }
+      if (!msg.roomId || msg.roomId !== roomId) return;
+      setMessages((prev) => {
+        if (
+          msg._id &&
+          prev.some((m) => m._id && m._id === msg._id)
+        ) {
+          return prev;
+        }
+        const contentKey = `${msg.senderId}|${msg.content}|${msg.createdAt ?? ""}`;
+        if (
+          !msg._id &&
+          prev.some(
+            (m) =>
+              `${m.senderId}|${m.content}|${m.createdAt ?? ""}` === contentKey,
+          )
+        ) {
+          return prev;
+        }
+        return sortMessagesByTime([...prev, msg]);
+      });
+    };
+
+    const handleChatError = (e: { message?: string }) => {
+      toast.error(e?.message ?? "Chat error");
     };
 
     socket.on("chat_history", handleHistory);
     socket.on("receive_message", handleReceive);
+    socket.on("chat_error", handleChatError);
 
     return () => {
+      cancelled = true;
+      socket.off("connect", bindSocketRooms);
+      socket.emit("leave_room", { roomId });
       socket.off("chat_history", handleHistory);
       socket.off("receive_message", handleReceive);
+      socket.off("chat_error", handleChatError);
     };
   }, [user, selectedChat]);
 
@@ -187,20 +135,16 @@ export function ChatPage() {
     if (!message.trim() || !user || !selectedChat) return;
 
     const roomId = getRoomId(user._id, selectedChat._id);
+    const trimmed = message.trim();
+    setMessage("");
 
-    const newMsg: IMessage = {
+    socket.emit("send_message", {
       roomId,
       senderId: user._id,
       receiverId: selectedChat._id,
-      content: message,
+      content: trimmed,
       read: false,
-      createdAt: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
-    setMessage("");
-
-    socket.emit("send_message", newMsg);
+    });
   };
 
   useEffect(() => {

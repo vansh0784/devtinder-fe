@@ -1,9 +1,3 @@
-export interface IUser {
-  _id: string;
-  username: string;
-  email: string;
-}
-
 export interface ILoginResponse {
   statusCode: number;
   message: string;
@@ -47,32 +41,12 @@ export interface Collaborator {
   cursorPosition: number;
 }
 
-export interface IComment {
-  _id: string;
-  user: string;
-  text: string;
-  createdAt: string;
-}
-
-export interface IPost {
-  _id: string;
-  author: string;
-  authorName: string;
-  authorUsername: string;
-  authorAvatar: string;
-  authorVerified: boolean;
-  text: string;
-  images: string[];
-  code: string;
-  projectLink: string;
-  tags: string[];
-  likes: string[];
-  comments: IComment[];
-  shares: number;
-  isPinned: boolean;
-  visibility: "public" | "private";
-  createdAt: string;
-  updatedAt: string;
+/** POST /collaboration/rooms */
+export interface ICollabRoomResponse {
+  roomId: string;
+  yjsWsUrl: string;
+  yjsDocName: string;
+  codeEditorSocketPath: string;
 }
 
 export interface IComment {
@@ -107,7 +81,7 @@ export interface IBaseResponse {
   statusCode: number;
   message: string;
   access_token?: string;
-  data?: any;
+  data?: unknown;
 }
 
 export interface IUser {
