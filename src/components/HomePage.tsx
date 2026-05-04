@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -15,9 +15,9 @@ import {
   TrendingUp,
   Briefcase,
   Send,
-  Paperclip,
   ImageIcon,
   Check,
+  ChevronDown,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
@@ -25,173 +25,664 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "./ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
+import { Input } from "./ui/input";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { getApi } from "../utils/api";
-import { type IPost } from "../utils/types";
+import { getApi, postApi, postFormDataApi } from "../utils/api";
+import {
+  type IComment,
+  type IPost,
+  type IBaseResponse,
+  type IUser,
+} from "../utils/types";
+import { useAuth } from "../hooks/useAuth";
 
-const MOCK_POSTS = [
-  {
-    _id: 1,
-    author: "03840470",
-    authorName: "Sarah Chen",
-    authorUsername: "@sarahchen",
-    authorAvatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
-    authorVerified: true,
-    content:
-      "Just launched my new React component library! 🚀 It's open source and includes 50+ customizable components with TypeScript support. Check it out!",
-    code: `import { Button } from '@mylib/ui';\n\nfunction App() {\n  return <Button variant="gradient">Click me</Button>\n}`,
-    tags: ["React", "TypeScript", "Open Source"],
-    likes: 234,
-    comments: 45,
-    shares: 12,
-    timestamp: "2h ago",
-    projectLink: "github.com/sarahchen/ui-lib",
-  },
-  {
-    _id: 2,
-    author: "03840470",
-    authorName: "Alex Rodriguez",
-    authorUsername: "@alexdev",
-    authorAvatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
-    authorVerified: false,
-    content:
-      "Looking for a backend developer to collaborate on a SaaS project. Stack: Node.js, PostgreSQL, Docker. DM if interested! 💼",
-    tags: ["Node.js", "PostgreSQL", "Collaboration"],
-    likes: 89,
-    comments: 23,
-    shares: 5,
-    timestamp: "4h ago",
-  },
-  {
-    _id: 3,
-    author: "03840470",
+function getAuthorId(post: IPost): string {
+  const a = post.author;
+  if (typeof a === "string") return a;
+  if (a && typeof a === "object" && "_id" in a && a._id) return String(a._id);
+  return "";
+}
 
-    authorName: "Maya Patel",
-    authorUsername: "@mayabuilds",
-    authorAvatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
-    authorVerified: true,
-    content:
-      "Built a real-time collaborative whiteboard using WebSockets and Canvas API. Here's a quick demo of the architecture:",
-    image: "https://images.unsplash.com/photo-1760548425298-22aa4b60fc16?w=800",
-    tags: ["WebSockets", "Canvas API", "Real-time"],
-    likes: 456,
-    comments: 67,
-    shares: 34,
-    timestamp: "6h ago",
-  },
-  {
-    _id: 4,
-    author: "03840470",
+function authorDisplayName(post: IPost): string {
+  const a = post.author;
+  if (
+    typeof a === "object" &&
+    a &&
+    "username" in a &&
+    typeof a.username === "string" &&
+    a.username
+  )
+    return a.username;
+  if (post.authorName) return post.authorName;
+  if (post.authorUsername) return post.authorUsername.replace(/^@/, "");
+  return "Developer";
+}
 
-    authorName: "James Wilson",
-    authorUsername: "@jwilson_dev",
-    authorAvatar:
-      "https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=150",
-    authorVerified: true,
-    content:
-      "Just finished a 30-day coding challenge! Built 30 different AI-powered tools. Here's what I learned about consistency and shipping fast 🧵",
-    tags: ["AI/ML", "Python", "Productivity"],
-    likes: 892,
-    comments: 134,
-    shares: 78,
-    timestamp: "1d ago",
-  },
-];
+function authorHandle(post: IPost): string {
+  const raw = post.authorUsername || authorDisplayName(post);
+  const s = raw.replace(/^@/, "");
+  return `@${s}`;
+}
+
+function avatarSrc(post: IPost): string {
+  const a = post.author;
+  if (
+    typeof a === "object" &&
+    a &&
+    typeof a.avatar === "string" &&
+    a.avatar
+  )
+    return a.avatar;
+  return post.authorAvatar || "";
+}
+
+function projectHref(link: string): string {
+  const t = link.trim();
+  if (!t) return "#";
+  if (/^https?:\/\//i.test(t)) return t;
+  return `https://${t}`;
+}
+
+function formatRelative(iso?: string): string {
+  if (!iso) return "Just now";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Just now";
+  const sec = (Date.now() - d.getTime()) / 1000;
+  if (sec < 60) return "Just now";
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  if (sec < 604800) return `${Math.floor(sec / 86400)}d ago`;
+  return d.toLocaleDateString();
+}
+
+function commentAuthorLabel(c: IComment): string {
+  const u = c.user;
+  if (typeof u === "object" && u && typeof u.username === "string")
+    return u.username || "Someone";
+  return "Someone";
+}
+
+function postLikedByUser(post: IPost, user: IUser | null): boolean {
+  if (!user?._id) return false;
+  return Boolean(
+    post.likes?.some((id) => String(id) === String(user._id)),
+  );
+}
+
+function EmptyFeedPlaceholder({ tab }: { tab: string }) {
+  const hints: Record<string, string> = {
+    trending: "When people start posting and liking, trending picks will appear here.",
+    recent: "No posts yet. Say hi with your first update above.",
+    network: "Posts from people you arenâ€™t viewing as yourself appear here.",
+  };
+  return (
+    <div className="glass rounded-2xl p-12 text-center">
+      <Code2 className="w-16 h-16 text-[#007BFF] mx-auto mb-4" />
+      <p className="text-gray-400">{hints[tab] ?? "Nothing to show yet."}</p>
+    </div>
+  );
+}
+
+interface FeedPostCardProps {
+  post: IPost;
+  index: number;
+  user: IUser | null;
+  hiredUsers: string[];
+  bookmarkedPostIds: string[];
+  commentsOpen: boolean;
+  commentDraft: string;
+  submittingComment: boolean;
+  liking: boolean;
+  onProfile: () => void;
+  onHire: () => void;
+  onToggleBookmark: () => void;
+  onToggleLike: () => void;
+  onToggleComments: () => void;
+  onDraftChange: (v: string) => void;
+  onSubmitComment: () => void;
+  onShare: () => void;
+}
+
+function FeedPostCard({
+  post,
+  index,
+  user,
+  hiredUsers,
+  bookmarkedPostIds,
+  commentsOpen,
+  commentDraft,
+  submittingComment,
+  liking,
+  onProfile,
+  onHire,
+  onToggleBookmark,
+  onToggleLike,
+  onToggleComments,
+  onDraftChange,
+  onSubmitComment,
+  onShare,
+}: FeedPostCardProps) {
+  const liked = postLikedByUser(post, user);
+  const bookmarks = bookmarkedPostIds.includes(post._id);
+  const authorId = getAuthorId(post);
+  const name = authorDisplayName(post);
+  const handle = authorHandle(post);
+  const imgs = Array.isArray(post.images) ? post.images : [];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.06 }}
+    >
+      <Card className="glass border-white/10 p-6 hover:border-[#007BFF]/50 transition-colors overflow-hidden">
+        <div className="flex flex-col gap-5">
+          <div className="flex items-start justify-between gap-4">
+            <button
+              type="button"
+              className="flex items-center gap-3 text-left rounded-lg focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#007BFF]/60"
+              onClick={onProfile}
+            >
+              <Avatar className="w-12 h-12 border-2 border-[#007BFF] shrink-0">
+                <AvatarImage src={avatarSrc(post)} alt={name} />
+                <AvatarFallback>{name.slice(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-white font-medium">{name}</span>
+                  {post.authorVerified && (
+                    <div className="w-4 h-4 bg-[#007BFF] rounded-full flex items-center justify-center">
+                      <svg
+                        className="w-3 h-3 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <span className="text-sm text-gray-400">
+                  {handle} Â· {formatRelative(post.createdAt)}
+                </span>
+              </div>
+            </button>
+            <div className="flex flex-wrap gap-2 justify-end shrink-0">
+              {user?._id && authorId !== user._id && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-[#FFF] bg-[#1e1e1e]"
+                  >
+                    Follow
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={onHire}
+                    disabled={hiredUsers.includes(post._id)}
+                    className={
+                      hiredUsers.includes(post._id)
+                        ? "bg-green-500/20 text-green-500 border border-green-500/30 hover:bg-green-500/20"
+                        : "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] hover:opacity-90"
+                    }
+                  >
+                    {hiredUsers.includes(post._id) ? (
+                      <>
+                        <Check className="w-4 h-4 mr-1" />
+                        Contacted
+                      </>
+                    ) : (
+                      <>
+                        <Briefcase className="w-4 h-4 mr-1" />
+                        Hire
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {post.text ? (
+            <p className="text-white whitespace-pre-wrap leading-relaxed">
+              {post.text}
+            </p>
+          ) : null}
+
+          {post.code?.trim() ? (
+            <div className="bg-black/50 rounded-xl p-4 border border-white/10 overflow-x-auto">
+              <pre className="text-sm text-green-400 font-mono">
+                <code>{post.code}</code>
+              </pre>
+            </div>
+          ) : null}
+
+          {imgs.length > 0 ? (
+            <div
+              className={
+                imgs.length > 1
+                  ? "grid grid-cols-2 gap-2 rounded-xl overflow-hidden"
+                  : "rounded-xl overflow-hidden"
+              }
+            >
+              {imgs.map((src) => (
+                <div key={src} className="relative bg-black/30 min-h-48">
+                  <ImageWithFallback
+                    src={src}
+                    alt="Post"
+                    className="w-full h-64 object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {post.projectLink?.trim() ? (
+            <a
+              href={projectHref(post.projectLink)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-[#007BFF] hover:underline text-sm inline-flex items-center"
+            >
+              <ExternalLink className="w-4 h-4 shrink-0" />
+              {post.projectLink}
+            </a>
+          ) : null}
+
+          {(post.tags?.length ?? 0) > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {post.tags.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant="outline"
+                  className="border-white/20 text-gray-300"
+                >
+                  #{tag.replace(/^#/, "")}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="flex items-center justify-between pt-4 border-t border-white/10">
+            <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
+              <motion.button
+                type="button"
+                disabled={liking || !user?._id}
+                title={user?._id ? "Like" : "Sign in to like"}
+                whileHover={{ scale: 1.06 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onToggleLike}
+                className={`flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                  liked ? "text-red-500" : "text-gray-400 hover:text-red-500"
+                }`}
+              >
+                <Heart
+                  className={`w-5 h-5 ${liked ? "fill-current" : ""}`}
+                />
+                <span>{post.likes?.length ?? 0}</span>
+              </motion.button>
+              <button
+                type="button"
+                onClick={onToggleComments}
+                className="flex items-center gap-2 text-gray-400 hover:text-[#007BFF] transition-colors"
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span>{post.comments?.length ?? 0}</span>
+              </button>
+              <button
+                type="button"
+                onClick={onShare}
+                className="flex items-center gap-2 text-gray-400 hover:text-[#007BFF] transition-colors"
+              >
+                <Share2 className="w-5 h-5" />
+                <span>{post.shares ?? 0}</span>
+              </button>
+            </div>
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onToggleBookmark}
+              className={`transition-colors ${
+                bookmarks
+                  ? "text-[#007BFF]"
+                  : "text-gray-400 hover:text-[#007BFF]"
+              }`}
+              aria-label="Bookmark"
+            >
+              <Bookmark
+                className={`w-5 h-5 ${bookmarks ? "fill-current" : ""}`}
+              />
+            </motion.button>
+          </div>
+
+          {commentsOpen ? (
+            <div className="rounded-xl border border-white/10 bg-black/25 p-4 space-y-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">
+                Comments
+              </p>
+              <ul className="max-h-52 overflow-y-auto space-y-3 pr-1">
+                {(post.comments ?? []).length === 0 ? (
+                  <li className="text-sm text-gray-500">No comments yet.</li>
+                ) : (
+                  (post.comments ?? []).map((c, i) => (
+                    <li key={`${post._id}-c-${i}-${String(c.createdAt ?? i)}`}>
+                      <div className="text-sm">
+                        <span className="text-[#007BFF] font-medium mr-2">
+                          {commentAuthorLabel(c)}
+                        </span>
+                        <span className="text-gray-300">{c.text}</span>
+                        {c.createdAt ? (
+                          <span className="text-gray-500 text-xs ml-2 tabular-nums">
+                            Â· {formatRelative(c.createdAt)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+              {!user?._id ? (
+                <p className="text-xs text-gray-500">Sign in to comment.</p>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    value={commentDraft}
+                    onChange={(e) => onDraftChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        void onSubmitComment();
+                      }
+                    }}
+                    placeholder="Write a commentâ€¦"
+                    className="bg-[#0A0A0A] border-white/15 text-white"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={
+                      submittingComment || !commentDraft.trim()
+                    }
+                    onClick={onSubmitComment}
+                    className="bg-linear-to-r from-[#007BFF] to-[#8A2BE2] shrink-0"
+                  >
+                    <Send className="w-4 h-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Reply</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </Card>
+    </motion.div>
+  );
+}
 
 export function HomePage() {
   const onNavigate = useNavigate();
-  const [likedPosts, setLikedPosts] = useState<number[]>([]);
-  const [savedPosts, setSavedPosts] = useState<number[]>([]);
-  const [hiredUsers, setHiredUsers] = useState<number[]>([]);
-  const [hireDialogOpen, setHireDialogOpen] = useState(false);
-  const [postContent, setPostContent] = useState("");
-  const [selectedUser, setSelectedUser] = useState<
-    (typeof MOCK_POSTS)[0] | null
-  >(null);
-  const [customMessage, setCustomMessage] = useState("");
+  const { user } = useAuth();
+
+  const [composerText, setComposerText] = useState("");
+  const [composerCode, setComposerCode] = useState("");
+  const [composerLink, setComposerLink] = useState("");
+  const [composerTags, setComposerTags] = useState("");
+  const [composerImage, setComposerImage] = useState<File | null>(null);
+  const [composerMoreOpen, setComposerMoreOpen] = useState(false);
+  const [creatingPost, setCreatingPost] = useState(false);
+
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
   const [feedPosts, setFeedPosts] = useState<IPost[]>([]);
+  const [loadingFeed, setLoadingFeed] = useState(true);
 
-  const toggleLike = (postId: number) => {
-    if (likedPosts.includes(postId)) {
-      setLikedPosts(likedPosts.filter((id) => id !== postId));
-    } else {
-      setLikedPosts([...likedPosts, postId]);
+  const [bookmarkedPostIds, setBookmarkedPostIds] = useState<string[]>([]);
+  const [hiredUsers, setHiredUsers] = useState<string[]>([]);
+  const [hireDialogOpen, setHireDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<IPost | null>(null);
+  const [customMessage, setCustomMessage] = useState("");
+
+  const [commentsOpenFor, setCommentsOpenFor] = useState<
+    Record<string, boolean>
+  >({});
+  const [commentDrafts, setCommentDrafts] = useState<
+    Record<string, string>
+  >({});
+  const [commentSending, setCommentSending] = useState<
+    Record<string, boolean>
+  >({});
+  const [likingIds, setLikingIds] = useState<Record<string, boolean>>({});
+
+  const loadPosts = useCallback(async () => {
+    setLoadingFeed(true);
+    try {
+      const res = await getApi<IPost[]>(`/posts?page=1&size=40`);
+      setFeedPosts(Array.isArray(res) ? res : []);
+    } catch {
+      setFeedPosts([]);
+    } finally {
+      setLoadingFeed(false);
     }
-  };
+  }, []);
 
-  const toggleSave = (postId: number) => {
-    if (savedPosts.includes(postId)) {
-      setSavedPosts(savedPosts.filter((id) => id !== postId));
-    } else {
-      setSavedPosts([...savedPosts, postId]);
-    }
-  };
+  useEffect(() => {
+    void loadPosts();
+  }, [loadPosts]);
 
-  const openHireDialog = (post: (typeof MOCK_POSTS)[0]) => {
+  const trendingPosts = useMemo(
+    () =>
+      [...feedPosts].sort(
+        (a, b) => (b.likes?.length ?? 0) - (a.likes?.length ?? 0),
+      ),
+    [feedPosts],
+  );
+
+  const recentPosts = useMemo(() => {
+    return [...feedPosts].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }, [feedPosts]);
+
+  const networkPosts = useMemo(() => {
+    if (!user?._id) return [];
+    return feedPosts.filter((p) => getAuthorId(p) !== user._id);
+  }, [feedPosts, user?._id]);
+
+  const canSubmitComposer = Boolean(
+    composerText.trim() ||
+      composerCode.trim() ||
+      composerLink.trim() ||
+      composerImage,
+  );
+
+  const openHireDialog = (post: IPost) => {
+    const body = post.text?.trim() ?? "";
+    const snippet = body.slice(0, 50);
+    const suffix = body.length > 50 ? "…" : "";
     setSelectedUser(post);
-    const defaultMessage = `Hi ${post?.authorName},
-			I came across your profile on DevTinder and I'm impressed by your work, especially your recent post about "${post.content.substring(
-        0,
-        50,
-      )}${post.content.length > 50 ? "..." : ""}".
+    setCustomMessage(
+      `Hi ${authorDisplayName(post)},
 
-			I have an exciting opportunity that I think would be a great fit for your skills. Would you be interested in discussing a potential collaboration or position?
+I came across your profile on DevTinder and I'm impressed by your work, especially your recent post about "${snippet}${suffix}".
 
-			Looking forward to connecting!
+I have an exciting opportunity that I think would be a great fit for your skills. Would you be interested in discussing a potential collaboration or position?
 
-			Best regards`;
-    setCustomMessage(defaultMessage);
+Looking forward to connecting!
+
+Best regards`,
+    );
     setHireDialogOpen(true);
   };
 
   const sendHireMessage = () => {
-    if (selectedUser) {
-      setHiredUsers([...hiredUsers, selectedUser?._id]);
-      setHireDialogOpen(false);
-      toast.success(`Hire request sent to ${selectedUser?.authorName}!`, {
-        description: "They'll receive your message and can respond via chat.",
-      });
-      setSelectedUser(null);
-      setCustomMessage("");
+    if (!selectedUser) return;
+    setHiredUsers((prev) => [...prev, selectedUser._id]);
+    setHireDialogOpen(false);
+    toast.success(`Hire request sent to ${authorDisplayName(selectedUser)}.`, {
+      description:
+        "They'll receive your message and can respond via chat.",
+    });
+    setSelectedUser(null);
+    setCustomMessage("");
+  };
+
+  const handleCreatePost = async () => {
+    if (!user?._id) {
+      toast.message("Sign in to create a post.");
+      return;
+    }
+    if (!canSubmitComposer || creatingPost) return;
+    setCreatingPost(true);
+    try {
+      const fd = new FormData();
+      const t = composerText.trim();
+      if (t) fd.append("text", t);
+      const c = composerCode.trim();
+      if (c) fd.append("code", c);
+      const l = composerLink.trim();
+      if (l) fd.append("projectLink", l);
+      const tg = composerTags.trim();
+      if (tg) fd.append("tags", tg);
+      if (composerImage) fd.append("image", composerImage);
+      await postFormDataApi<IBaseResponse>("/posts", fd);
+      toast.success("Your post is live.");
+      setComposerText("");
+      setComposerCode("");
+      setComposerLink("");
+      setComposerTags("");
+      setComposerImage(null);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+      await loadPosts();
+    } finally {
+      setCreatingPost(false);
     }
   };
 
-  const handleCreatePost = () => {
-    if (postContent.trim()) {
-      toast.success("Post created successfully!", {
-        description: "Your post is now live on your feed.",
-      });
-      setPostContent("");
+  const toggleCommentSection = (postId: string) => {
+    setCommentsOpenFor((prev) => ({
+      ...prev,
+      [postId]: !prev[postId],
+    }));
+  };
+
+  const handleSubmitComment = async (postId: string) => {
+    const draft = commentDrafts[postId]?.trim();
+    if (!draft || commentSending[postId]) return;
+    setCommentSending((s) => ({ ...s, [postId]: true }));
+    try {
+      await postApi<{ comment: string }, IBaseResponse>(
+        `/posts/${postId}/comment`,
+        { comment: draft },
+      );
+      setCommentDrafts((d) => ({ ...d, [postId]: "" }));
+      await loadPosts();
+    } finally {
+      setCommentSending((s) => ({ ...s, [postId]: false }));
     }
   };
 
-  useEffect(() => {
-    getApi<IPost[]>(`/posts`)
-      .then((res) => setFeedPosts(res))
-      .catch((err) => console.log(err));
-  }, []);
+  const handleToggleLike = async (postId: string) => {
+    if (!user?._id || likingIds[postId]) return;
+    setLikingIds((m) => ({ ...m, [postId]: true }));
+    try {
+      await postApi<object, IBaseResponse>(`/posts/${postId}/like`, {});
+      await loadPosts();
+    } finally {
+      setLikingIds((m) => ({ ...m, [postId]: false }));
+    }
+  };
+
+  const toggleBookmark = (postId: string) => {
+    setBookmarkedPostIds((prev) =>
+      prev.includes(postId)
+        ? prev.filter((id) => id !== postId)
+        : [...prev, postId],
+    );
+  };
+
+  const handleSharePost = async (post: IPost) => {
+    const url = `${window.location.origin}/home?post=${post._id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied.");
+    } catch {
+      toast.error("Could not copy link.");
+    }
+  };
+
+  const renderFeedTab = (list: IPost[], tabKey: string) => {
+    if (loadingFeed) {
+      return (
+        <div className="glass rounded-2xl p-12 text-center text-gray-400">
+          Loading feed…
+        </div>
+      );
+    }
+    if (!list.length) {
+      return <EmptyFeedPlaceholder tab={tabKey} />;
+    }
+    return (
+      <div className="space-y-6">
+        {list.map((post, index) => (
+          <FeedPostCard
+            key={post._id}
+            post={post}
+            index={index}
+            user={user}
+            hiredUsers={hiredUsers}
+            bookmarkedPostIds={bookmarkedPostIds}
+            commentsOpen={Boolean(commentsOpenFor[post._id])}
+            commentDraft={commentDrafts[post._id] ?? ""}
+            submittingComment={Boolean(commentSending[post._id])}
+            liking={Boolean(likingIds[post._id])}
+            onProfile={() => {
+              const aid = getAuthorId(post);
+              if (aid) void onNavigate(`/user/detail/${aid}`);
+            }}
+            onHire={() => openHireDialog(post)}
+            onToggleBookmark={() => toggleBookmark(post._id)}
+            onToggleLike={() => void handleToggleLike(post._id)}
+            onToggleComments={() => toggleCommentSection(post._id)}
+            onDraftChange={(v) =>
+              setCommentDrafts((d) => ({ ...d, [post._id]: v }))
+            }
+            onSubmitComment={() => void handleSubmitComment(post._id)}
+            onShare={() => void handleSharePost(post)}
+          />
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen p-6 max-w-4xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl text-white mb-2">Developer Feed</h1>
         <p className="text-gray-400">
-          Discover projects and connect with developers
-          {feedPosts.length > 0 ? (
+          Discover projects and connect with developers.
+          {!loadingFeed && feedPosts.length > 0 ? (
             <span className="text-emerald-400/90">
               {" "}
-              · {feedPosts.length} post{feedPosts.length === 1 ? "" : "s"} from
-              API
+              Showing {feedPosts.length} post{feedPosts.length === 1 ? "" : "s"}.
             </span>
           ) : null}
         </p>
@@ -205,271 +696,151 @@ export function HomePage() {
       >
         <Card className="glass border-white/10 p-4 hover:border-[#007BFF]/50 transition-colors">
           <div className="flex items-start gap-3">
-            <Avatar className="w-10 h-10 border-2 border-[#007BFF]">
+            <Avatar className="w-10 h-10 border-2 border-[#007BFF] shrink-0">
               <AvatarImage
-                src="https://images.unsplash.com/photo-1715029005043-e88d219a3c48?w=100"
-                alt="You"
+                src={user?.avatar ?? undefined}
+                alt={user?.username ?? "You"}
               />
               <AvatarFallback>You</AvatarFallback>
             </Avatar>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0 space-y-3">
               <Textarea
-                value={postContent}
-                onChange={(e) => setPostContent(e.target.value)}
-                placeholder="What's on your mind? Share your code, projects, or ideas..."
-                className="min-h-20 bg-[#0A0A0A] border-white/10 text-white resize-none mb-3"
+                value={composerText}
+                onChange={(e) => setComposerText(e.target.value)}
+                placeholder="What's on your mind? Share builds, snippets, or ideas…"
+                className="min-h-22 bg-[#0A0A0A] border-white/10 text-white resize-none"
               />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  setComposerImage(f ?? null);
+                }}
+              />
+
+              <Collapsible
+                open={composerMoreOpen}
+                onOpenChange={setComposerMoreOpen}
+              >
+                <CollapsibleTrigger asChild>
                   <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-between border-white/15 text-gray-300 hover:bg-white/5"
+                  >
+                    <span>Code · link · tags</span>
+                    <ChevronDown
+                      className={`w-4 h-4 shrink-0 transition-transform ${composerMoreOpen ? "rotate-180" : ""}`}
+                    />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-3 data-[state=closed]:animate-none">
+                  <Textarea
+                    value={composerCode}
+                    onChange={(e) => setComposerCode(e.target.value)}
+                    placeholder="Optional code snippet"
+                    className="min-h-24 bg-[#0A0A0A] border-white/10 text-green-400 font-mono text-sm resize-y"
+                  />
+                  <Input
+                    value={composerLink}
+                    onChange={(e) => setComposerLink(e.target.value)}
+                    placeholder="Project or repo URL (optional)"
+                    className="bg-[#0A0A0A] border-white/10 text-white"
+                  />
+                  <Input
+                    value={composerTags}
+                    onChange={(e) => setComposerTags(e.target.value)}
+                    placeholder="Tags: react, node, typescript"
+                    className="bg-[#0A0A0A] border-white/10 text-white"
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
                     size="sm"
                     variant="ghost"
                     className="text-gray-400 hover:text-[#007BFF] hover:bg-[#007BFF]/10"
+                    onClick={() => imageInputRef.current?.click()}
                   >
                     <ImageIcon className="w-4 h-4 mr-1" />
-                    Image
+                    {composerImage ? composerImage.name : "Image"}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-gray-400 hover:text-[#007BFF] hover:bg-[#007BFF]/10"
-                  >
-                    <Code2 className="w-4 h-4 mr-1" />
-                    Code
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-gray-400 hover:text-[#007BFF] hover:bg-[#007BFF]/10"
-                  >
-                    <Paperclip className="w-4 h-4 mr-1" />
-                    Link
-                  </Button>
+                  {composerImage ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs text-gray-500"
+                      onClick={() => {
+                        setComposerImage(null);
+                        if (imageInputRef.current)
+                          imageInputRef.current.value = "";
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  ) : null}
                 </div>
                 <Button
                   size="sm"
-                  onClick={handleCreatePost}
-                  disabled={!postContent.trim()}
+                  disabled={!canSubmitComposer || creatingPost}
+                  onClick={() => void handleCreatePost()}
                   className="bg-linear-to-r from-[#007BFF] to-[#8A2BE2] hover:opacity-90 disabled:opacity-50"
                 >
-                  <FaTelegramPlane />
-                  Post
+                  <FaTelegramPlane className="mr-2" />
+                  {creatingPost ? "Posting…" : "Post"}
                 </Button>
               </div>
+              <p className="text-[11px] text-gray-500">
+                Posts need text, code, a link, and/or an image. Tags can be comma-separated.
+              </p>
             </div>
           </div>
         </Card>
       </motion.div>
 
       <Tabs defaultValue="trending" className="mb-8">
-        <TabsList className="bg-white/5 border border-white/10">
+        <TabsList className="bg-white/5 border border-white/10 flex-wrap">
           <TabsTrigger
             value="trending"
-            className="data-[state=active]:bg-[#007BFF]  text-white"
+            className="data-[state=active]:bg-[#007BFF] text-white gap-2"
           >
-            <TrendingUp className="w-4 h-4 mr-2" />
+            <TrendingUp className="w-4 h-4 shrink-0" />
             Trending
           </TabsTrigger>
           <TabsTrigger
             value="recent"
-            className="data-[state=active]:bg-[#007BFF]  text-white"
+            className="data-[state=active]:bg-[#007BFF] text-white"
           >
             Recent
           </TabsTrigger>
           <TabsTrigger
             value="network"
-            className="data-[state=active]:bg-[#007BFF]  text-white"
+            className="data-[state=active]:bg-[#007BFF] text-white"
           >
             My Network
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="trending" className="mt-6 space-y-6">
-          {MOCK_POSTS.map((post, index) => (
-            <motion.div
-              key={post._id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
-            >
-              <Card className="glass border-white/10 p-6 hover:border-[#007BFF]/50 transition-colors">
-                <div className="flex items-start justify-between mb-4">
-                  <div
-                    className="flex items-center gap-3"
-                    onClick={() => onNavigate(`/user/detail/${post?.author}`)}
-                  >
-                    <Avatar className="w-12 h-12 border-2 border-[#007BFF]">
-                      <AvatarImage
-                        src={post?.authorAvatar}
-                        alt={post?.authorName}
-                      />
-                      <AvatarFallback>
-                        {`@${post?.authorName?.split(" ")[0]}`}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-white">{post?.authorName}</span>
-                        {post?.authorVerified && (
-                          <div className="w-4 h-4 bg-[#007BFF] rounded-full flex items-center justify-center">
-                            <svg
-                              className="w-3 h-3 text-white"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-sm text-gray-400">
-                        {post?.authorUsername} · {post?.timestamp}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className=" text-[#FFF] bg-[#1e1e1e]"
-                    >
-                      Follow
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => openHireDialog(post)}
-                      disabled={hiredUsers.includes(post?._id)}
-                      className={
-                        hiredUsers.includes(post?._id)
-                          ? "bg-green-500/20 text-green-500 border border-green-500/30 hover:bg-green-500/20"
-                          : "bg-linear-to-r from-[#007BFF] to-[#8A2BE2] hover:opacity-90"
-                      }
-                    >
-                      {hiredUsers.includes(post?._id) ? (
-                        <>
-                          <Check className="w-4 h-4 mr-1" />
-                          Contacted
-                        </>
-                      ) : (
-                        <>
-                          <Briefcase className="w-4 h-4 mr-1" />
-                          Hire
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-white mb-4">{post.content}</p>
-                {post.code && (
-                  <div className="bg-black/50 rounded-xl p-4 mb-4 border border-white/10">
-                    <pre className="text-sm text-green-400 overflow-x-auto">
-                      <code>{post.code}</code>
-                    </pre>
-                  </div>
-                )}
-                {post.image && (
-                  <div className="mb-4 rounded-xl overflow-hidden">
-                    <ImageWithFallback
-                      src={post.image}
-                      alt="Post image"
-                      className="w-full h-64 object-cover"
-                    />
-                  </div>
-                )}
-                {post.projectLink && (
-                  <a
-                    href={`https://${post.projectLink}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-[#007BFF] hover:underline mb-4"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    {post.projectLink}
-                  </a>
-                )}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {post.tags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="outline"
-                      className="border-white/20 text-gray-300"
-                    >
-                      #{tag}
-                    </Badge>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                  <div className="flex items-center gap-6">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => toggleLike(post?._id)}
-                      className={`flex items-center gap-2 transition-colors ${
-                        likedPosts.includes(post?._id)
-                          ? "text-red-500"
-                          : "text-gray-400 hover:text-red-500"
-                      }`}
-                    >
-                      <Heart
-                        className={`w-5 h-5 ${
-                          likedPosts.includes(post?._id) ? "fill-current" : ""
-                        }`}
-                      />
-                      <span>
-                        {post.likes + (likedPosts.includes(post?._id) ? 1 : 0)}
-                      </span>
-                    </motion.button>
-                    <button className="flex items-center gap-2 text-gray-400 hover:text-[#007BFF] transition-colors">
-                      <MessageCircle className="w-5 h-5" />
-                      <span>{post.comments}</span>
-                    </button>
-                    <button className="flex items-center gap-2 text-gray-400 hover:text-[#007BFF] transition-colors">
-                      <Share2 className="w-5 h-5" />
-                      <span>{post.shares}</span>
-                    </button>
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => toggleSave(post?._id)}
-                    className={`transition-colors ${
-                      savedPosts.includes(post?._id)
-                        ? "text-[#007BFF]"
-                        : "text-gray-400 hover:text-[#007BFF]"
-                    }`}
-                  >
-                    <Bookmark
-                      className={`w-5 h-5 ${
-                        savedPosts.includes(post?._id) ? "fill-current" : ""
-                      }`}
-                    />
-                  </motion.button>
-                </div>
-              </Card>
-            </motion.div>
-          ))}
+        <TabsContent value="trending" className="mt-6">
+          {renderFeedTab(trendingPosts, "trending")}
         </TabsContent>
-
         <TabsContent value="recent" className="mt-6">
-          <div className="glass rounded-2xl p-12 text-center">
-            <Code2 className="w-16 h-16 text-[#007BFF] mx-auto mb-4" />
-            <p className="text-gray-400">Recent posts will appear here</p>
-          </div>
+          {renderFeedTab(recentPosts, "recent")}
         </TabsContent>
-
         <TabsContent value="network" className="mt-6">
-          <div className="glass rounded-2xl p-12 text-center">
-            <Code2 className="w-16 h-16 text-[#007BFF] mx-auto mb-4" />
-            <p className="text-gray-400">
-              Posts from your network will appear here
-            </p>
-          </div>
+          {renderFeedTab(networkPosts, "network")}
         </TabsContent>
       </Tabs>
+
       <Dialog open={hireDialogOpen} onOpenChange={setHireDialogOpen}>
         <DialogContent className="bg-[#1C1C1E] border-white/10 text-white max-w-2xl">
           <DialogHeader>
@@ -480,23 +851,23 @@ export function HomePage() {
               Send Hire Request
             </DialogTitle>
             <DialogDescription className="text-gray-400">
-              {selectedUser && (
-                <div className="flex items-center gap-3 mt-3 p-3 bg-white/5 rounded-xl border border-white/10">
+              {selectedUser ? (
+                <div className="flex items-center gap-3 mt-3 p-3 bg-white/5 rounded-xl border border-white/10 flex-wrap">
                   <Avatar className="w-10 h-10 border-2 border-[#007BFF]">
                     <AvatarImage
-                      src={selectedUser?.authorAvatar}
-                      alt={selectedUser?.authorName}
+                      src={avatarSrc(selectedUser)}
+                      alt={authorDisplayName(selectedUser)}
                     />
                     <AvatarFallback>
-                      {selectedUser?.authorUsername}
+                      {authorHandle(selectedUser)}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-white">
-                        {selectedUser?.authorUsername}
+                        {authorDisplayName(selectedUser)}
                       </span>
-                      {selectedUser?.authorVerified && (
+                      {selectedUser.authorVerified && (
                         <div className="w-3 h-3 bg-[#007BFF] rounded-full flex items-center justify-center">
                           <svg
                             className="w-2 h-2 text-white"
@@ -513,11 +884,11 @@ export function HomePage() {
                       )}
                     </div>
                     <span className="text-xs text-gray-400">
-                      {selectedUser?.authorUsername}
+                      {authorHandle(selectedUser)}
                     </span>
                   </div>
                   <div className="ml-auto flex flex-wrap gap-1">
-                    {selectedUser.tags.slice(0, 3).map((tag) => (
+                    {(selectedUser.tags ?? []).slice(0, 3).map((tag) => (
                       <Badge
                         key={tag}
                         variant="outline"
@@ -528,7 +899,7 @@ export function HomePage() {
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
             </DialogDescription>
           </DialogHeader>
 
@@ -545,8 +916,7 @@ export function HomePage() {
                 placeholder="Write your hire request message..."
               />
               <p className="text-xs text-gray-400 mt-2">
-                💡 Tip: Personalize your message to increase response rate.
-                Mention specific skills or projects that caught your attention.
+                Tip: Mention specific skills or projects that stood out—it often improves replies.
               </p>
             </div>
 
@@ -559,25 +929,24 @@ export function HomePage() {
                 <li className="flex items-start gap-2">
                   <span className="text-[#007BFF] mt-0.5">•</span>
                   <span>
-                    Your message will be sent directly to{" "}
-                    {selectedUser?.authorName}'s inbox
+                    Your message is drafted for{" "}
+                    {selectedUser
+                      ? authorDisplayName(selectedUser)
+                      : "this developer"}
+                    ’s inbox.
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[#007BFF] mt-0.5">•</span>
-                  <span>
-                    They'll receive a notification about your hire request
-                  </span>
+                  <span>They receive a notification about your hire request.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[#007BFF] mt-0.5">•</span>
-                  <span>
-                    If interested, they can reply via the chat feature
-                  </span>
+                  <span>If interested, they can reply via chat.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[#007BFF] mt-0.5">•</span>
-                  <span>You'll be notified when they respond</span>
+                  <span>You&apos;ll hear back when they respond.</span>
                 </li>
               </ul>
             </div>

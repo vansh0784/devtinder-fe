@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -34,17 +34,23 @@ export function AuthPage() {
     password: "",
   });
 
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async (): Promise<IUser | null> => {
     try {
       const res = await getApi<IUser>("/user/profile");
       setUser(res);
-
-      return user;
+      return res;
     } catch (err) {
       console.error("PROFILE FETCH ERROR:", err);
       return null;
     }
-  };
+  }, [setUser]);
+
+  /** Route users who haven't set skills/interests yet to onboarding */
+  function nextPathAfterLogin(profile: IUser): string {
+    const hasSkills = (profile.skills?.length ?? 0) > 0;
+    const hasInterests = (profile.interests?.length ?? 0) > 0;
+    return !hasSkills || !hasInterests ? "/onboarding" : "/home";
+  }
 
   const handleLogin = async () => {
     try {
@@ -53,8 +59,8 @@ export function AuthPage() {
         loginData,
       );
       toast.success(res.message ?? "Signed in");
-      onNavigate("/home");
-      await fetchUserProfile();
+      const profile = await fetchUserProfile();
+      if (profile) onNavigate(nextPathAfterLogin(profile));
     } catch {
       /* Error toast from API interceptor */
     }
@@ -67,8 +73,8 @@ export function AuthPage() {
         signupData,
       );
       toast.success(res.message ?? "Account created");
-      onNavigate("/home");
-      await fetchUserProfile();
+      const profile = await fetchUserProfile();
+      if (profile) onNavigate("/onboarding");
     } catch {
       /* Error toast from API interceptor */
     }
@@ -92,13 +98,21 @@ export function AuthPage() {
           username: user.name,
           avatar: user.picture,
         });
+        const profile = await fetchUserProfile();
+        if (profile) {
+          const hasSkills = (profile.skills?.length ?? 0) > 0;
+          const hasInterests = (profile.interests?.length ?? 0) > 0;
+          onNavigate(
+            !hasSkills || !hasInterests ? "/onboarding" : "/home",
+          );
+        }
       } catch {
         /* Error toast from API interceptor */
       }
     };
 
     handleAuth0Login();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, fetchUserProfile, onNavigate]);
 
   // --- RENDER ---
   return (

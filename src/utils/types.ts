@@ -49,16 +49,22 @@ export interface ICollabRoomResponse {
   codeEditorSocketPath: string;
 }
 
+export type PostAuthorPreview = {
+  _id?: string;
+  username?: string;
+  avatar?: string;
+};
+
 export interface IComment {
-  _id: string;
-  user: string;
+  _id?: string;
+  user: string | PostAuthorPreview;
   text: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export interface IPost {
   _id: string;
-  author: string;
+  author: string | PostAuthorPreview;
   authorName: string;
   authorUsername: string;
   authorAvatar: string;
@@ -91,13 +97,16 @@ export interface IUser {
   email: string;
   phone?: string;
   skills?: string[];
+  /** Topics / domains the user cares about */
+  interests?: string[];
+  /** Onboarding step 3 — project kinds */
+  projectTypes?: string[];
   bio?: string;
   experienceLevel?: string;
 
   github?: string;
   linkedin?: string;
   portfolio?: string;
-  interests?: [];
 
   avatar?: string;
   location?: string;

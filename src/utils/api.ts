@@ -103,6 +103,15 @@ export const postApi = async <TRequest, TResponse>(
   return (await api.post(url, body, config)) as TResponse;
 };
 
+/** Multipart uploads; omit manual Content-Type so axios sets multipart boundary */
+export const postFormDataApi = async <TResponse>(
+  url: string,
+  formData: FormData,
+  config: AxiosRequestConfig = {},
+): Promise<TResponse> => {
+  return (await api.post(url, formData, config)) as TResponse;
+};
+
 export const putApi = async <TRequest, TResponse>(
   url: string,
   body: TRequest,
